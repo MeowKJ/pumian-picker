@@ -5,6 +5,14 @@
   font-synthesis: none;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  background: #111318;
+}
+
 * {
   box-sizing: border-box;
   scrollbar-color: #394252 #111620;
@@ -30,7 +38,6 @@ body {
   margin: 0;
   min-width: 980px;
   overflow: hidden;
-  background: #111318;
 }
 
 button,
@@ -59,23 +66,23 @@ button:disabled {
 }
 
 .topbar {
-  height: 84px;
+  height: 68px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 18px;
   border-bottom: 1px solid #252a35;
   background: #141820;
 }
 
 h1 {
   margin: 0;
-  font-size: 25px;
+  font-size: 21px;
   letter-spacing: 0;
 }
 
 .topbar p {
-  margin: 7px 0 0;
+  margin: 4px 0 0;
   color: #9ca7b8;
   font-size: 13px;
 }
@@ -90,7 +97,7 @@ h1 {
 .top-actions button,
 .toolbar button,
 .wide {
-  height: 38px;
+  height: 34px;
   border-radius: 6px;
   padding: 0 14px;
   display: inline-flex;
@@ -106,15 +113,15 @@ h1 {
 }
 
 .workspace {
-  height: calc(100vh - 84px);
+  height: calc(100vh - 68px);
   min-height: 0;
   display: grid;
-  grid-template-columns: 270px minmax(0, 1fr) 230px;
+  grid-template-columns: 238px minmax(0, 1fr) 198px;
 }
 
 .filters,
 .queue {
-  padding: 18px;
+  padding: 12px;
   border-right: 1px solid #252a35;
   background: #151922;
   overflow: auto;
@@ -130,15 +137,15 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
   color: #d7dde8;
   font-weight: 700;
 }
 
 label {
   display: grid;
-  gap: 7px;
-  margin-bottom: 15px;
+  gap: 6px;
+  margin-bottom: 10px;
   color: #aeb7c6;
   font-size: 13px;
 }
@@ -146,7 +153,7 @@ label {
 input,
 select {
   width: 100%;
-  height: 38px;
+  height: 34px;
   border: 1px solid #343a48;
   border-radius: 6px;
   padding: 0 10px;
@@ -163,7 +170,7 @@ select {
 .input-wrap svg {
   position: absolute;
   left: 10px;
-  top: 11px;
+  top: 9px;
   color: #7f8a9b;
 }
 
@@ -180,9 +187,9 @@ select {
 }
 
 .output-path {
-  min-height: 34px;
-  margin: 10px 0 16px;
-  padding: 8px;
+  min-height: 30px;
+  margin: 8px 0 10px;
+  padding: 7px;
   border: 1px solid #2c3240;
   border-radius: 6px;
   background: #10141b;
@@ -204,20 +211,20 @@ select {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 18px;
+  margin-top: 10px;
 }
 
 .content {
   min-width: 0;
   min-height: 0;
-  padding: 18px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
 }
 
 .toolbar {
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   color: #aeb7c6;
   font-size: 13px;
 }
@@ -238,12 +245,12 @@ select {
 
 .row {
   width: 100%;
-  min-height: 58px;
+  min-height: 46px;
   display: grid;
   grid-template-columns: 34px minmax(260px, 1fr) 70px 110px 92px 104px;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 0;
   border-bottom: 1px solid #262c37;
   border-radius: 0;
@@ -259,7 +266,7 @@ select {
   position: sticky;
   top: 0;
   z-index: 2;
-  min-height: 38px;
+  min-height: 34px;
   color: #8d98aa;
   background: #10141b;
   font-size: 12px;
@@ -281,7 +288,7 @@ select {
 }
 
 .row small {
-  margin-top: 4px;
+  margin-top: 2px;
   color: #9aa5b6;
   font-size: 12px;
 }
@@ -324,7 +331,7 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 42px;
+  height: 36px;
   border-bottom: 1px solid #262c37;
   color: #aeb7c6;
 }
@@ -334,14 +341,14 @@ select {
 }
 
 .log {
-  margin-top: 16px;
+  margin-top: 10px;
   display: grid;
   gap: 8px;
   font-size: 12px;
 }
 
 .log div {
-  padding: 9px;
+  padding: 7px;
   border: 1px solid #2d3340;
   border-radius: 6px;
   background: #10141b;
@@ -358,4 +365,89 @@ select {
 .log span {
   margin-top: 4px;
   color: #8f9aac;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chips button {
+  height: 28px;
+  min-width: 42px;
+  border-radius: 6px;
+  padding: 0 9px;
+  color: #aeb7c6;
+}
+
+.chips button.active {
+  border-color: #20a77f;
+  background: #17382f;
+  color: #6df0c0;
+}
+
+.batch-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.batch-panel button {
+  height: 38px;
+  border-radius: 6px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.position-card {
+  min-width: 0;
+  border: 1px solid #28303c;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: linear-gradient(180deg, #161c25 0%, #10151d 100%);
+}
+
+.position-head,
+.position-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9ca7b8;
+  font-size: 12px;
+}
+
+.position-head strong {
+  color: #edf1f7;
+}
+
+.position-rail {
+  position: relative;
+  height: 14px;
+  margin: 8px 0;
+  overflow: hidden;
+  border: 1px solid #2b3340;
+  border-radius: 999px;
+  background: repeating-linear-gradient(90deg, #111720 0 18px, #151c26 18px 20px);
+}
+
+.position-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #20a77f, #66d6ff);
+}
+
+.position-window {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .32);
+  box-shadow: 0 0 14px rgba(102, 214, 255, .42);
 }

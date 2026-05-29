@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import { mkdir, writeFile, access } from 'node:fs/promises';
+import { mkdir, writeFile, access, readdir, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -34,6 +34,10 @@ type DownloadArgs = {
   includeVideo: boolean;
   skipExisting: boolean;
   concurrency: number;
+};
+
+type ExistingIdsArgs = {
+  outputDir: string;
 };
 
 type DownloadEvent = {
@@ -82,10 +86,10 @@ function sanitizePathName(value: string): string {
 }
 
 function folderName(song: MajdataSong, index: number): string {
-  const order = String(index + 1).padStart(4, '0');
+  const date = song.timestamp ? song.timestamp.slice(0, 10).replace(/-/g, '') : String(index + 1).padStart(4, '0');
   const title = sanitizePathName(song.title || song.id);
   const maker = sanitizePathName(song.designer || song.uploader || 'unknown');
-  return `${order}_${title}_${maker}`;
+  return `${date}_${title}_${maker}_${song.id.slice(0, 8)}`;
 }
 
 async function withRetry<T>(task: () => Promise<T>, attempts = 3): Promise<T> {
@@ -151,6 +155,28 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function readExistingIds(outputDir: string): Promise<string[]> {
+  const ids = new Set<string>();
+  try {
+    const entries = await readdir(outputDir, { withFileTypes: true });
+    await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
+      const folder = entry.name;
+      const idSuffix = folder.match(/_([0-9a-f]{8})$/i)?.[1];
+      if (idSuffix) ids.add(idSuffix);
+      try {
+        const meta = JSON.parse(await readFile(join(outputDir, folder, 'meta.json'), 'utf8')) as { id?: string };
+        if (meta.id) ids.add(meta.id);
+        if (meta.id) ids.add(meta.id.slice(0, 8));
+      } catch {
+        // Ignore folders that are not created by this app.
+      }
+    }));
+  } catch {
+    return [];
+  }
+  return [...ids];
 }
 
 async function fetchCharts(args: FetchChartsArgs): Promise<MajdataSong[]> {
@@ -249,6 +275,7 @@ async function detectMacSigning(): Promise<string[]> {
 app.whenReady().then(() => {
   ipcMain.handle('charts:fetch', (_event, args: FetchChartsArgs) => fetchCharts(args));
   ipcMain.handle('downloads:start', (event, args: DownloadArgs) => runQueue(args, event.sender));
+  ipcMain.handle('downloads:existing-ids', (_event, args: ExistingIdsArgs) => readExistingIds(args.outputDir));
   ipcMain.handle('dialog:output-dir', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
     return result.canceled ? undefined : result.filePaths[0];

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Download, FolderOpen, RefreshCw, Search, Settings, ShieldCheck, SkipForward } from 'lucide-react';
+import { Check, Download, FolderOpen, RefreshCw, Search, Settings, ShieldCheck, SkipForward, StepForward } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -34,6 +34,7 @@ declare global {
         skipExisting: boolean;
         concurrency: number;
       }) => Promise<DownloadEvent[]>;
+      getExistingIds: (args: { outputDir: string }) => Promise<string[]>;
       detectMacSigning: () => Promise<string[]>;
       onDownloadEvent: (callback: (event: DownloadEvent) => void) => () => void;
     };
@@ -47,6 +48,7 @@ const fallbackApi: Window['pumian'] = {
   },
   chooseOutputDir: async () => undefined,
   startDownload: async () => [],
+  getExistingIds: async () => [],
   detectMacSigning: async () => [],
   onDownloadEvent: () => () => {},
 };
@@ -55,7 +57,7 @@ function api(): Window['pumian'] {
   return window.pumian || fallbackApi;
 }
 
-const difficultyOptions = ['全部', '12', '12+', '13', '13+', '14', '14+', '15'];
+const difficultyOptions = ['12', '12+', '13', '13+', '14', '14+', '15'];
 
 function primaryLevel(song: Song): string {
   return (song.levels || []).find(Boolean) || '未知';
@@ -81,14 +83,24 @@ function tags(song: Song): string {
   return [...(song.tags || []), ...(song.publicTags || [])].slice(0, 3).join(' / ');
 }
 
+function sortRecent(a: Song, b: Song): number {
+  return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
+}
+
+function hasLocalChart(song: Song, existingIds: Set<string>): boolean {
+  return existingIds.has(song.id) || existingIds.has(song.id.slice(0, 8));
+}
+
 function App() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('等待拉取近期谱面');
   const [searchText, setSearchText] = useState('');
-  const [difficulty, setDifficulty] = useState('全部');
+  const [difficulties, setDifficulties] = useState<Set<string>>(new Set());
   const [pages, setPages] = useState(3);
+  const [batchSize, setBatchSize] = useState(30);
   const [outputDir, setOutputDir] = useState('');
+  const [existingIds, setExistingIds] = useState<Set<string>>(new Set());
   const [includeVideo, setIncludeVideo] = useState(false);
   const [skipExisting, setSkipExisting] = useState(true);
   const [concurrency, setConcurrency] = useState(3);
@@ -104,15 +116,33 @@ function App() {
     api().detectMacSigning().then(setSigning).catch(() => setSigning([]));
   }, []);
 
-  const filtered = useMemo(() => {
+  useEffect(() => {
+    if (!outputDir) {
+      setExistingIds(new Set());
+      return;
+    }
+    api().getExistingIds({ outputDir }).then((ids) => setExistingIds(new Set(ids))).catch(() => setExistingIds(new Set()));
+  }, [outputDir]);
+
+  function filterSongs(source: Song[]): Song[] {
     const keyword = searchText.trim().toLowerCase();
-    return songs.filter((song) => {
+    return [...source].filter((song) => {
       const level = primaryLevel(song);
-      const hitDifficulty = difficulty === '全部' || level === difficulty;
+      const hitDifficulty = difficulties.size === 0 || difficulties.has(level);
       const text = `${song.title} ${song.artist || ''} ${song.designer || ''} ${song.uploader || ''} ${tags(song)}`.toLowerCase();
       return hitDifficulty && (!keyword || text.includes(keyword));
-    });
-  }, [songs, searchText, difficulty]);
+    }).sort(sortRecent);
+  }
+
+  const filtered = useMemo(() => {
+    return filterSongs(songs);
+  }, [songs, searchText, difficulties]);
+
+  const coverageIndex = filtered.findIndex((song) => !hasLocalChart(song, existingIds));
+  const coveredCount = coverageIndex === -1 ? filtered.length : coverageIndex;
+  const coveragePercent = filtered.length ? Math.min(100, Math.round((coveredCount / filtered.length) * 100)) : 0;
+  const latestWindowEnd = Math.min(batchSize, filtered.length);
+  const oldestLoaded = filtered.at(-1);
 
   const stats = useMemo(() => {
     const list = Object.values(events);
@@ -139,7 +169,11 @@ function App() {
 
   async function chooseDir() {
     const dir = await api().chooseOutputDir();
-    if (dir) setOutputDir(dir);
+    if (dir) {
+      setOutputDir(dir);
+      const ids = await api().getExistingIds({ outputDir: dir });
+      setExistingIds(new Set(ids));
+    }
   }
 
   function toggle(id: string) {
@@ -155,8 +189,54 @@ function App() {
     setSelected(new Set(filtered.map((song) => song.id)));
   }
 
-  async function startDownload() {
-    const picked = filtered.filter((song) => selected.has(song.id));
+  function toggleDifficulty(level: string) {
+    setDifficulties((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  }
+
+  async function ensureWindow(offset: number, count: number): Promise<Song[]> {
+    let nextPages = pages;
+    let source = songs;
+    let scoped = filterSongs(source);
+    while (scoped.length < offset + count && nextPages < 50) {
+      nextPages = Math.min(50, nextPages + Math.max(1, Math.ceil((offset + count - scoped.length) / 30)));
+      setStatus(`正在往前拉取更多谱面，第 ${nextPages} 页以内...`);
+      source = await api().fetchCharts({ pages: nextPages, sort: '' });
+      setPages(nextPages);
+      setSongs(source);
+      scoped = filterSongs(source);
+      if (source.length === songs.length) break;
+    }
+    return scoped.slice(offset, offset + count);
+  }
+
+  async function ensureIncremental(count: number): Promise<Song[]> {
+    if (!outputDir) return [];
+    let nextPages = pages;
+    let source = songs;
+    let known = existingIds;
+    let scoped = filterSongs(source);
+    let missing = scoped.filter((song) => !hasLocalChart(song, known));
+    while (missing.length < count && nextPages < 50) {
+      nextPages = Math.min(50, nextPages + Math.max(1, Math.ceil((count - missing.length) / 30)));
+      setStatus(`增量扫描中，正在继续往前拉取到第 ${nextPages} 页...`);
+      source = await api().fetchCharts({ pages: nextPages, sort: '' });
+      known = new Set(await api().getExistingIds({ outputDir }));
+      setPages(nextPages);
+      setSongs(source);
+      setExistingIds(known);
+      scoped = filterSongs(source);
+      missing = scoped.filter((song) => !hasLocalChart(song, known));
+      if (source.length === songs.length) break;
+    }
+    return missing.slice(0, count);
+  }
+
+  async function downloadSongs(picked: Song[]) {
     if (!outputDir || picked.length === 0) {
       setStatus('请先选择输出目录和要下载的谱面');
       return;
@@ -173,6 +253,10 @@ function App() {
         concurrency,
       });
       const failed = result.filter((event) => event.status === 'failed').length;
+      if (outputDir) {
+        const ids = await api().getExistingIds({ outputDir });
+        setExistingIds(new Set(ids));
+      }
       setStatus(failed ? `下载完成，${failed} 个失败，可调整后重试` : '下载完成');
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
@@ -180,6 +264,23 @@ function App() {
     } finally {
       setDownloading(false);
     }
+  }
+
+  async function startDownload() {
+    const picked = filtered.filter((song) => selected.has(song.id));
+    await downloadSongs(picked);
+  }
+
+  async function downloadLatestBatch() {
+    const picked = await ensureWindow(0, batchSize);
+    setSelected(new Set(picked.map((song) => song.id)));
+    await downloadSongs(picked);
+  }
+
+  async function continueBatch() {
+    const picked = await ensureIncremental(batchSize);
+    setSelected(new Set(picked.map((song) => song.id)));
+    await downloadSongs(picked);
   }
 
   return (
@@ -216,10 +317,17 @@ function App() {
             <input type="number" min={1} max={50} value={pages} onChange={(event) => setPages(Number(event.target.value))} />
           </label>
           <label>
+            每批数量
+            <input type="number" min={1} max={500} value={batchSize} onChange={(event) => setBatchSize(Number(event.target.value))} />
+          </label>
+          <label>
             难度
-            <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}>
-              {difficultyOptions.map((item) => <option key={item}>{item}</option>)}
-            </select>
+            <div className="chips">
+              <button className={difficulties.size === 0 ? 'active' : ''} onClick={() => setDifficulties(new Set())}>全部</button>
+              {difficultyOptions.map((item) => (
+                <button key={item} className={difficulties.has(item) ? 'active' : ''} onClick={() => toggleDifficulty(item)}>{item}</button>
+              ))}
+            </div>
           </label>
           <label>
             并发数
@@ -246,6 +354,30 @@ function App() {
         </aside>
 
         <section className="content">
+          <div className="batch-panel">
+            <div className="position-card">
+              <div className="position-head">
+                <span>下载位置</span>
+                <strong>{coveredCount} / {filtered.length}</strong>
+              </div>
+              <div className="position-rail">
+                <span className="position-fill" style={{ width: `${coveragePercent}%` }} />
+                <span className="position-window" style={{ left: '0%', width: `${filtered.length ? Math.max(6, (latestWindowEnd / filtered.length) * 100) : 6}%` }} />
+              </div>
+              <div className="position-meta">
+                <span>最新窗口 1-{latestWindowEnd}</span>
+                <span>最旧 {oldestLoaded ? formatDate(oldestLoaded.timestamp) : '未加载'}</span>
+              </div>
+            </div>
+            <button onClick={downloadLatestBatch} disabled={downloading}>
+              <Download size={17} />
+              下载最新 {batchSize} 个
+            </button>
+            <button onClick={continueBatch} disabled={downloading}>
+              <StepForward size={17} />
+              增量下载 {batchSize} 个
+            </button>
+          </div>
           <div className="toolbar">
             <span>近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 选中 {filtered.filter((song) => selected.has(song.id)).length} 个</span>
             <button onClick={selectFiltered}>全选筛选结果</button>
@@ -256,7 +388,7 @@ function App() {
             <div className="row head">
               <span></span><span>谱面</span><span>难度</span><span>上传者</span><span>时间</span><span>状态</span>
             </div>
-            {filtered.sort((a, b) => levelNumber(primaryLevel(b)) - levelNumber(primaryLevel(a))).map((song) => {
+            {filtered.map((song) => {
               const event = events[song.id];
               return (
                 <button className="row" key={song.id} onClick={() => toggle(song.id)}>
