@@ -83,20 +83,23 @@ function tags(song: Song): string {
   return [...(song.tags || []), ...(song.publicTags || [])].slice(0, 3).join(' / ');
 }
 
-function dayKey(value?: string): string {
-  if (!value) return '未知';
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(value));
-}
-
 function sortRecent(a: Song, b: Song): number {
   return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
 }
 
 function hasLocalChart(song: Song, existingIds: Set<string>): boolean {
   return existingIds.has(song.id) || existingIds.has(song.id.slice(0, 8));
+}
+
+function taskPercent(event: DownloadEvent): number {
+  if (event.status === 'queued') return 8;
+  if (event.status === 'done' || event.status === 'skipped' || event.status === 'failed') return 100;
+  if (event.message?.includes('谱面')) return 24;
+  if (event.message?.includes('音频')) return 48;
+  if (event.message?.includes('封面')) return 72;
+  if (event.message?.includes('PV')) return 86;
+  if (event.message?.includes('写入')) return 94;
+  return 18;
 }
 
 function App() {
@@ -169,27 +172,6 @@ function App() {
   const downloadTotal = Object.keys(events).length;
   const downloadDone = stats.done + stats.failed + stats.skipped;
   const downloadPercent = downloadTotal ? Math.round((downloadDone / downloadTotal) * 100) : 0;
-
-  const positionCells = useMemo(() => {
-    const groups = new Map<string, { total: number; local: number; selected: number }>();
-    filtered.forEach((song) => {
-      const key = dayKey(song.timestamp);
-      const prev = groups.get(key) || { total: 0, local: 0, selected: 0 };
-      prev.total += 1;
-      if (hasLocalChart(song, existingIds)) prev.local += 1;
-      if (selected.has(song.id)) prev.selected += 1;
-      groups.set(key, prev);
-    });
-    const cells = Array.from(groups.entries()).slice(0, 42).reverse();
-    return cells.map(([date, item]) => ({
-      date,
-      total: item.total,
-      local: item.local,
-      selected: item.selected,
-      level: Math.min(4, Math.max(1, Math.ceil(item.total / 4))),
-      localRatio: item.total ? item.local / item.total : 0,
-    }));
-  }, [filtered, existingIds, selected]);
 
   const fxDots = useMemo(() => Array.from({ length: 18 }, (_, index) => index), []);
 
@@ -423,19 +405,6 @@ function App() {
                 <span className="download-fill" style={{ width: `${downloadPercent}%` }} />
                 <strong>{downloadTotal ? `${downloadDone}/${downloadTotal}` : '等待任务'}</strong>
               </div>
-              <div className="calendar-map" aria-label="近期下载覆盖点阵">
-                {positionCells.map((cell, index) => (
-                  <span
-                    key={`${cell.date}-${index}`}
-                    title={`${cell.date}：${cell.total} 个，本地 ${cell.local} 个，选中 ${cell.selected} 个`}
-                    className={cell.localRatio >= 1 ? 'complete' : cell.localRatio > 0 ? 'partial' : ''}
-                    style={{
-                      '--level': cell.level,
-                      '--local': cell.localRatio,
-                    } as React.CSSProperties}
-                  />
-                ))}
-              </div>
             </div>
             <div className="batch-panel">
               <button className="batch-action" onClick={downloadLatestBatch} disabled={downloading}>
@@ -486,7 +455,9 @@ function App() {
           <div className="metric danger"><span>失败</span><strong>{stats.failed}</strong></div>
           <div className="log">
             {Object.values(events).slice(-18).reverse().map((event) => (
-              <div key={`${event.id}-${event.status}`} className={event.status}>
+              <div key={`${event.id}-${event.status}`} className={`task-card ${event.status}`}>
+                <span className="task-wave" />
+                <span className="task-progress" style={{ width: `${taskPercent(event)}%` }} />
                 <strong>{event.title}</strong>
                 <span>{event.message || event.status}</span>
               </div>
