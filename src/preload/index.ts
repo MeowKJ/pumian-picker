@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('pumian', {
   fetchCharts: (args: unknown) => ipcRenderer.invoke('charts:fetch', args),
   chooseOutputDir: () => ipcRenderer.invoke('dialog:output-dir'),
   startDownload: (args: unknown) => ipcRenderer.invoke('downloads:start', args),
+  getExistingIds: (args: unknown) => ipcRenderer.invoke('downloads:existing-ids', args),
   detectMacSigning: () => ipcRenderer.invoke('signing:detect'),
   onDownloadEvent: (callback: (event: unknown) => void) => {
     const listener = (_: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
