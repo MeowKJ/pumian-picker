@@ -59,6 +59,7 @@
     "asar": true,
     "mac": {
       "category": "public.app-category.utilities",
+      "icon": "build/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -75,6 +76,7 @@
       ]
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -92,6 +94,7 @@
     },
     "linux": {
       "category": "Utility",
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "AppImage",
