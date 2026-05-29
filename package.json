@@ -1,0 +1,112 @@
+{
+  "name": "pumian-picker",
+  "version": "0.1.0",
+  "description": "铺面拔取器 - MajdataNet recent chart batch downloader.",
+  "main": "dist/main/index.js",
+  "author": "MeowKJ",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "config": {
+    "electron_builder_binaries_mirror": "https://mirrors.huaweicloud.com/electron-builder-binaries/"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc -b && electron-vite build",
+    "dist": "pnpm build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://mirrors.huaweicloud.com/electron-builder-binaries/ electron-builder",
+    "dist:mac": "pnpm build && cross-env ELECTRON_BUILDER_BINARIES_DOWNLOAD_OVERRIDE_URL=https://mirrors.huaweicloud.com/electron-builder-binaries/dmg-builder@1.2.0 electron-builder --mac --arm64",
+    "dist:win": "pnpm build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://mirrors.huaweicloud.com/electron-builder-binaries/ electron-builder --win --x64",
+    "dist:linux": "pnpm build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://mirrors.huaweicloud.com/electron-builder-binaries/ electron-builder --linux --x64",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron-updater": "^6.6.2",
+    "lucide-react": "^0.556.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^4.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
+  },
+  "build": {
+    "appId": "net.meowkj.pumianpicker",
+    "productName": "铺面拔取器",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**"
+    ],
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "category": "Utility",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "publish": null
+  }
+}
