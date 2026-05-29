@@ -1,11 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain, net } from 'electron';
-import { mkdir, writeFile, access, readdir, readFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { mkdir, writeFile, access, readdir, readFile, stat, rm } from 'node:fs/promises';
+import { constants, createReadStream, createWriteStream } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
+import type { Archiver, ArchiverOptions } from 'archiver';
 
 const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
+const createArchive = require('archiver') as (format: 'zip', options?: ArchiverOptions) => Archiver;
 const MAJDATA_API = 'https://majdata.net/api3/api';
 
 type MajdataSong = {
@@ -46,6 +52,37 @@ type DownloadEvent = {
   status: 'queued' | 'downloading' | 'done' | 'skipped' | 'failed';
   message?: string;
 };
+
+type FolderStatus = {
+  folder: string;
+  title: string;
+  id?: string;
+  complete: boolean;
+  missing: string[];
+  size: number;
+  updatedAt?: string;
+};
+
+type FolderSummary = {
+  total: number;
+  complete: number;
+  incomplete: number;
+  size: number;
+  recent: FolderStatus[];
+};
+
+type TransferSession = {
+  url: string;
+  filename: string;
+  size: number;
+  completeCount: number;
+  address: string;
+  port: number;
+};
+
+let transferServer: Server | undefined;
+let transferFilePath = '';
+let transferSession: TransferSession | undefined;
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -155,6 +192,70 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function fileSize(path: string): Promise<number> {
+  try {
+    return (await stat(path)).size;
+  } catch {
+    return 0;
+  }
+}
+
+async function directorySize(path: string): Promise<number> {
+  let total = 0;
+  try {
+    const entries = await readdir(path, { withFileTypes: true });
+    await Promise.all(entries.map(async (entry) => {
+      const child = join(path, entry.name);
+      if (entry.isDirectory()) total += await directorySize(child);
+      else total += await fileSize(child);
+    }));
+  } catch {
+    return 0;
+  }
+  return total;
+}
+
+async function scanOutputDir(outputDir: string): Promise<FolderSummary> {
+  const folders: FolderStatus[] = [];
+  try {
+    const entries = await readdir(outputDir, { withFileTypes: true });
+    await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
+      const folderPath = join(outputDir, entry.name);
+      const required = ['maidata.txt', 'track.mp3', 'bg.jpg', 'meta.json'];
+      const present = await Promise.all(required.map((file) => exists(join(folderPath, file))));
+      const missing = required.filter((_, index) => !present[index]);
+      let meta: Partial<MajdataSong> = {};
+      try {
+        meta = JSON.parse(await readFile(join(folderPath, 'meta.json'), 'utf8')) as Partial<MajdataSong>;
+      } catch {
+        // Folders without app metadata are still shown as incomplete.
+      }
+      const stats = await stat(folderPath).catch(() => undefined);
+      folders.push({
+        folder: entry.name,
+        title: meta.title || entry.name,
+        id: meta.id,
+        complete: missing.length === 0,
+        missing,
+        size: await directorySize(folderPath),
+        updatedAt: stats?.mtime.toISOString(),
+      });
+    }));
+  } catch {
+    return { total: 0, complete: 0, incomplete: 0, size: 0, recent: [] };
+  }
+
+  folders.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  const complete = folders.filter((folder) => folder.complete).length;
+  return {
+    total: folders.length,
+    complete,
+    incomplete: folders.length - complete,
+    size: folders.reduce((sum, folder) => sum + folder.size, 0),
+    recent: folders.slice(0, 24),
+  };
 }
 
 async function readExistingIds(outputDir: string): Promise<string[]> {
@@ -270,6 +371,85 @@ async function runQueue(args: DownloadArgs, sender: Electron.WebContents): Promi
   return results;
 }
 
+function localAddress(): string {
+  for (const items of Object.values(networkInterfaces())) {
+    for (const item of items || []) {
+      if (item.family === 'IPv4' && !item.internal) return item.address;
+    }
+  }
+  return '127.0.0.1';
+}
+
+async function stopTransfer(): Promise<void> {
+  if (transferServer) {
+    await new Promise<void>((resolve) => transferServer?.close(() => resolve()));
+  }
+  transferServer = undefined;
+  transferSession = undefined;
+  if (transferFilePath) {
+    await rm(transferFilePath, { force: true }).catch(() => undefined);
+  }
+  transferFilePath = '';
+}
+
+async function createTransferZip(outputDir: string): Promise<TransferSession> {
+  await stopTransfer();
+  const entries = await readdir(outputDir, { withFileTypes: true });
+  const completeFolders: string[] = [];
+  await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
+    const folderPath = join(outputDir, entry.name);
+    const ok = await Promise.all(['maidata.txt', 'track.mp3', 'bg.jpg', 'meta.json'].map((file) => exists(join(folderPath, file))));
+    if (ok.every(Boolean)) completeFolders.push(entry.name);
+  }));
+  if (completeFolders.length === 0) throw new Error('当前文件夹没有完整歌曲可打包');
+
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '_');
+  const filename = `铺面拔取器_${stamp}_${completeFolders.length}首.zip`;
+  const zipPath = join(app.getPath('temp'), filename);
+  await rm(zipPath, { force: true }).catch(() => undefined);
+
+  await new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(zipPath);
+    const archive = createArchive('zip', { zlib: { level: 9 } });
+    output.on('close', resolve);
+    archive.on('error', reject);
+    archive.pipe(output);
+    completeFolders.sort().forEach((folder) => {
+      archive.directory(join(outputDir, folder), folder);
+    });
+    archive.finalize().catch(reject);
+  });
+
+  transferFilePath = zipPath;
+  const address = localAddress();
+  const size = await fileSize(zipPath);
+  transferServer = createServer((request, response) => {
+    if (request.url !== '/download') {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      response.end(`<a href="/download">下载 ${filename}</a>`);
+      return;
+    }
+    response.writeHead(200, {
+      'Content-Type': 'application/zip',
+      'Content-Length': String(size),
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      'Cache-Control': 'no-store',
+    });
+    createReadStream(zipPath).pipe(response);
+  });
+  await new Promise<void>((resolve) => transferServer?.listen(0, '0.0.0.0', () => resolve()));
+  const port = (transferServer.address() as { port: number }).port;
+  transferSession = {
+    url: `http://${address}:${port}/download`,
+    filename,
+    size,
+    completeCount: completeFolders.length,
+    address,
+    port,
+  };
+  return transferSession;
+}
+
 async function detectMacSigning(): Promise<string[]> {
   if (process.platform !== 'darwin') return [];
   const { stdout } = await execFileAsync('security', ['find-identity', '-v', '-p', 'codesigning']);
@@ -283,6 +463,9 @@ app.whenReady().then(() => {
   ipcMain.handle('charts:fetch', (_event, args: FetchChartsArgs) => fetchCharts(args));
   ipcMain.handle('downloads:start', (event, args: DownloadArgs) => runQueue(args, event.sender));
   ipcMain.handle('downloads:existing-ids', (_event, args: ExistingIdsArgs) => readExistingIds(args.outputDir));
+  ipcMain.handle('folder:scan', (_event, args: ExistingIdsArgs) => scanOutputDir(args.outputDir));
+  ipcMain.handle('transfer:prepare', (_event, args: ExistingIdsArgs) => createTransferZip(args.outputDir));
+  ipcMain.handle('transfer:stop', () => stopTransfer());
   ipcMain.handle('dialog:output-dir', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
     return result.canceled ? undefined : result.filePaths[0];
@@ -296,5 +479,6 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  void stopTransfer();
   if (process.platform !== 'darwin') app.quit();
 });

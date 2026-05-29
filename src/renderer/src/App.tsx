@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, Check, Download, FolderOpen, RefreshCw, Search, Settings, ShieldCheck, SkipForward, StepForward } from 'lucide-react';
+import QRCode from 'qrcode';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -22,6 +23,33 @@ type DownloadEvent = {
   message?: string;
 };
 
+type FolderStatus = {
+  folder: string;
+  title: string;
+  id?: string;
+  complete: boolean;
+  missing: string[];
+  size: number;
+  updatedAt?: string;
+};
+
+type FolderSummary = {
+  total: number;
+  complete: number;
+  incomplete: number;
+  size: number;
+  recent: FolderStatus[];
+};
+
+type TransferSession = {
+  url: string;
+  filename: string;
+  size: number;
+  completeCount: number;
+  address: string;
+  port: number;
+};
+
 declare global {
   interface Window {
     pumian: {
@@ -35,6 +63,9 @@ declare global {
         concurrency: number;
       }) => Promise<DownloadEvent[]>;
       getExistingIds: (args: { outputDir: string }) => Promise<string[]>;
+      scanFolder: (args: { outputDir: string }) => Promise<FolderSummary>;
+      prepareTransfer: (args: { outputDir: string }) => Promise<TransferSession>;
+      stopTransfer: () => Promise<void>;
       detectMacSigning: () => Promise<string[]>;
       onDownloadEvent: (callback: (event: DownloadEvent) => void) => () => void;
     };
@@ -49,6 +80,11 @@ const fallbackApi: Window['pumian'] = {
   chooseOutputDir: async () => undefined,
   startDownload: async () => [],
   getExistingIds: async () => [],
+  scanFolder: async () => ({ total: 0, complete: 0, incomplete: 0, size: 0, recent: [] }),
+  prepareTransfer: async () => {
+    throw new Error('当前环境不支持传输');
+  },
+  stopTransfer: async () => undefined,
   detectMacSigning: async () => [],
   onDownloadEvent: () => () => {},
 };
@@ -77,6 +113,18 @@ function formatDate(value?: string): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function formatBytes(value: number): string {
+  if (!value) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size >= 10 || index === 0 ? Math.round(size) : size.toFixed(1)} ${units[index]}`;
 }
 
 function tags(song: Song): string {
@@ -118,6 +166,11 @@ function App() {
   const [downloading, setDownloading] = useState(false);
   const [events, setEvents] = useState<Record<string, DownloadEvent>>({});
   const [signing, setSigning] = useState<string[]>([]);
+  const [queueMode, setQueueMode] = useState<'tasks' | 'folder' | 'transfer'>('tasks');
+  const [folderSummary, setFolderSummary] = useState<FolderSummary>({ total: 0, complete: 0, incomplete: 0, size: 0, recent: [] });
+  const [transfer, setTransfer] = useState<TransferSession | undefined>();
+  const [transferQr, setTransferQr] = useState('');
+  const [transferStatus, setTransferStatus] = useState('等待打包');
 
   useEffect(() => api().onDownloadEvent((event) => {
     setEvents((prev) => ({ ...prev, [event.id]: event }));
@@ -130,10 +183,22 @@ function App() {
   useEffect(() => {
     if (!outputDir) {
       setExistingIds(new Set());
+      setFolderSummary({ total: 0, complete: 0, incomplete: 0, size: 0, recent: [] });
       return;
     }
     api().getExistingIds({ outputDir }).then((ids) => setExistingIds(new Set(ids))).catch(() => setExistingIds(new Set()));
+    refreshFolderSummary(outputDir);
   }, [outputDir]);
+
+  useEffect(() => {
+    if (!transfer?.url) {
+      setTransferQr('');
+      return;
+    }
+    QRCode.toDataURL(transfer.url, { margin: 1, width: 156, color: { dark: '#07120f', light: '#f6fffb' } })
+      .then(setTransferQr)
+      .catch(() => setTransferQr(''));
+  }, [transfer]);
 
   function filterSongs(source: Song[]): Song[] {
     const keyword = searchText.trim().toLowerCase();
@@ -194,6 +259,30 @@ function App() {
       setOutputDir(dir);
       const ids = await api().getExistingIds({ outputDir: dir });
       setExistingIds(new Set(ids));
+      await refreshFolderSummary(dir);
+    }
+  }
+
+  async function refreshFolderSummary(dir = outputDir) {
+    if (!dir) return;
+    const summary = await api().scanFolder({ outputDir: dir });
+    setFolderSummary(summary);
+  }
+
+  async function prepareTransfer() {
+    if (!outputDir) {
+      setTransferStatus('请先选择输出目录');
+      return;
+    }
+    try {
+      setQueueMode('transfer');
+      setTransferStatus('正在打包完整歌曲...');
+      const session = await api().prepareTransfer({ outputDir });
+      setTransfer(session);
+      setTransferStatus('iPad 扫码下载');
+      await refreshFolderSummary();
+    } catch (error) {
+      setTransferStatus(error instanceof Error ? error.message : '打包失败');
     }
   }
 
@@ -277,6 +366,7 @@ function App() {
       if (outputDir) {
         const ids = await api().getExistingIds({ outputDir });
         setExistingIds(new Set(ids));
+        await refreshFolderSummary(outputDir);
       }
       setStatus(failed ? `下载完成，${failed} 个失败，可调整后重试` : '下载完成');
     } catch (error) {
@@ -449,20 +539,60 @@ function App() {
 
         <aside className="queue">
           <div className="section-title"><Download size={17} />下载队列</div>
-          <div className="metric"><span>进行中</span><strong>{stats.active}</strong></div>
-          <div className="metric"><span>完成</span><strong>{stats.done}</strong></div>
-          <div className="metric"><span>跳过</span><strong>{stats.skipped}</strong></div>
-          <div className="metric danger"><span>失败</span><strong>{stats.failed}</strong></div>
-          <div className="log">
-            {Object.values(events).slice(-18).reverse().map((event) => (
-              <div key={`${event.id}-${event.status}`} className={`task-card ${event.status}`}>
-                <span className="task-wave" />
-                <span className="task-progress" style={{ width: `${taskPercent(event)}%` }} />
-                <strong>{event.title}</strong>
-                <span>{event.message || event.status}</span>
-              </div>
-            ))}
+          <div className="queue-tabs">
+            <button className={queueMode === 'tasks' ? 'active' : ''} onClick={() => setQueueMode('tasks')}>任务</button>
+            <button className={queueMode === 'folder' ? 'active' : ''} onClick={() => setQueueMode('folder')}>文件夹</button>
+            <button className={queueMode === 'transfer' ? 'active' : ''} onClick={() => setQueueMode('transfer')}>传输</button>
           </div>
+          {queueMode === 'tasks' && (
+            <>
+              <div className="metric"><span>进行中</span><strong>{stats.active}</strong></div>
+              <div className="metric"><span>完成</span><strong>{stats.done}</strong></div>
+              <div className="metric"><span>跳过</span><strong>{stats.skipped}</strong></div>
+              <div className="metric danger"><span>失败</span><strong>{stats.failed}</strong></div>
+              <div className="log">
+                {Object.values(events).slice(-18).reverse().map((event) => (
+                  <div key={`${event.id}-${event.status}`} className={`task-card ${event.status}`}>
+                    <span className="task-wave" />
+                    <span className="task-progress" style={{ width: `${taskPercent(event)}%` }} />
+                    <strong>{event.title}</strong>
+                    <span>{event.message || event.status}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {queueMode === 'folder' && (
+            <>
+              <div className="metric"><span>歌曲文件夹</span><strong>{folderSummary.total}</strong></div>
+              <div className="metric"><span>完整</span><strong>{folderSummary.complete}</strong></div>
+              <div className="metric danger"><span>缺文件</span><strong>{folderSummary.incomplete}</strong></div>
+              <div className="metric"><span>总大小</span><strong>{formatBytes(folderSummary.size)}</strong></div>
+              <button className="queue-action" onClick={() => refreshFolderSummary()}>重新扫描</button>
+              <div className="log folder-log">
+                {folderSummary.recent.map((item) => (
+                  <div key={item.folder} className={`task-card ${item.complete ? 'done' : 'failed'}`}>
+                    <span className="task-progress" style={{ width: item.complete ? '100%' : '45%' }} />
+                    <strong>{item.title}</strong>
+                    <span>{item.complete ? formatBytes(item.size) : `缺 ${item.missing.join(' / ')}`}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {queueMode === 'transfer' && (
+            <div className="transfer-panel">
+              <button className="queue-action primary-action" onClick={prepareTransfer} disabled={!outputDir}>
+                打包并开启扫码下载
+              </button>
+              <div className="transfer-card">
+                <strong>{transferStatus}</strong>
+                <span>{transfer ? `${transfer.completeCount} 首 / ${formatBytes(transfer.size)}` : '会只打包完整歌曲文件夹'}</span>
+                {transferQr && <img src={transferQr} alt="iPad 扫码下载二维码" />}
+                {transfer && <a href={transfer.url}>{transfer.url}</a>}
+              </div>
+            </div>
+          )}
         </aside>
       </section>
     </main>
