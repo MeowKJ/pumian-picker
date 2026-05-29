@@ -7,11 +7,29 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: #394252 #111620;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #111620;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid #111620;
+  border-radius: 999px;
+  background: #394252;
 }
 
 body {
   margin: 0;
   min-width: 980px;
+  overflow: hidden;
   background: #111318;
 }
 
@@ -34,9 +52,10 @@ button:disabled {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .topbar {
@@ -87,7 +106,8 @@ h1 {
 }
 
 .workspace {
-  min-height: calc(100vh - 84px);
+  height: calc(100vh - 84px);
+  min-height: 0;
   display: grid;
   grid-template-columns: 270px minmax(0, 1fr) 230px;
 }
@@ -97,6 +117,8 @@ h1 {
   padding: 18px;
   border-right: 1px solid #252a35;
   background: #151922;
+  overflow: auto;
+  min-height: 0;
 }
 
 .queue {
@@ -187,7 +209,10 @@ select {
 
 .content {
   min-width: 0;
+  min-height: 0;
   padding: 18px;
+  display: flex;
+  flex-direction: column;
 }
 
 .toolbar {
@@ -203,9 +228,12 @@ select {
 }
 
 .table {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid #282e3a;
   border-radius: 8px;
+  overflow-y: auto;
 }
 
 .row {
@@ -228,6 +256,9 @@ select {
 }
 
 .row.head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   min-height: 38px;
   color: #8d98aa;
   background: #10141b;

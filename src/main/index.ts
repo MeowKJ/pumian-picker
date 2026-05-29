@@ -52,7 +52,7 @@ function createWindow(): void {
     title: '铺面拔取器',
     backgroundColor: '#111318',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -63,6 +63,10 @@ function createWindow(): void {
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'));
   }
+
+  win.webContents.on('console-message', (_event, level, message) => {
+    console.log(`[renderer:${level}] ${message}`);
+  });
 }
 
 function apiUrl(path: string): string {
@@ -84,29 +88,60 @@ function folderName(song: MajdataSong, index: number): string {
   return `${order}_${title}_${maker}`;
 }
 
+async function withRetry<T>(task: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 600 * (index + 1)));
+    }
+  }
+  throw lastError;
+}
+
 async function fetchBinary(url: string): Promise<Buffer | undefined> {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'pumian-picker/0.1.0',
-      Accept: '*/*',
-    },
+  return withRetry(async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'pumian-picker/0.1.0',
+          Accept: '*/*',
+        },
+      });
+      if (!res.ok) return undefined;
+      const bytes = await res.arrayBuffer();
+      return Buffer.from(bytes);
+    } finally {
+      clearTimeout(timer);
+    }
   });
-  if (!res.ok) return undefined;
-  const bytes = await res.arrayBuffer();
-  return Buffer.from(bytes);
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'pumian-picker/0.1.0',
-      Accept: 'application/json',
-    },
+  return withRetry(async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'pumian-picker/0.1.0',
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`MajdataNet 返回 ${res.status}`);
+      }
+      return (await res.json()) as T;
+    } finally {
+      clearTimeout(timer);
+    }
   });
-  if (!res.ok) {
-    throw new Error(`MajdataNet 返回 ${res.status}`);
-  }
-  return (await res.json()) as T;
 }
 
 async function exists(path: string): Promise<boolean> {
