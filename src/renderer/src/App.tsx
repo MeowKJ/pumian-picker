@@ -40,6 +40,21 @@ declare global {
   }
 }
 
+const fallbackApi: Window['pumian'] = {
+  fetchCharts: async () => {
+    const response = await fetch('https://majdata.net/api3/api/maichart/list?sort=&page=0');
+    return response.json();
+  },
+  chooseOutputDir: async () => undefined,
+  startDownload: async () => [],
+  detectMacSigning: async () => [],
+  onDownloadEvent: () => () => {},
+};
+
+function api(): Window['pumian'] {
+  return window.pumian || fallbackApi;
+}
+
 const difficultyOptions = ['全部', '12', '12+', '13', '13+', '14', '14+', '15'];
 
 function primaryLevel(song: Song): string {
@@ -81,12 +96,12 @@ function App() {
   const [events, setEvents] = useState<Record<string, DownloadEvent>>({});
   const [signing, setSigning] = useState<string[]>([]);
 
-  useEffect(() => window.pumian.onDownloadEvent((event) => {
+  useEffect(() => api().onDownloadEvent((event) => {
     setEvents((prev) => ({ ...prev, [event.id]: event }));
   }), []);
 
   useEffect(() => {
-    window.pumian.detectMacSigning().then(setSigning).catch(() => setSigning([]));
+    api().detectMacSigning().then(setSigning).catch(() => setSigning([]));
   }, []);
 
   const filtered = useMemo(() => {
@@ -110,15 +125,20 @@ function App() {
   }, [events]);
 
   async function refresh() {
-    setStatus('正在从 MajdataNet 拉取近期谱面...');
-    const data = await window.pumian.fetchCharts({ pages, sort: '' });
-    setSongs(data);
-    setSelected(new Set(data.map((song) => song.id)));
-    setStatus(`已拉取 ${data.length} 个近期谱面，默认全选`);
+    try {
+      setStatus('正在从 MajdataNet 拉取近期谱面...');
+      const data = await api().fetchCharts({ pages, sort: '' });
+      setSongs(data);
+      setSelected(new Set(data.map((song) => song.id)));
+      setStatus(`已拉取 ${data.length} 个近期谱面，默认全选`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      setStatus(`拉取失败：${message}`);
+    }
   }
 
   async function chooseDir() {
-    const dir = await window.pumian.chooseOutputDir();
+    const dir = await api().chooseOutputDir();
     if (dir) setOutputDir(dir);
   }
 
@@ -144,16 +164,22 @@ function App() {
     setDownloading(true);
     setEvents(Object.fromEntries(picked.map((song) => [song.id, { id: song.id, title: song.title, status: 'queued' as const }])));
     setStatus(`开始下载 ${picked.length} 个谱面`);
-    const result = await window.pumian.startDownload({
-      songs: picked,
-      outputDir,
-      includeVideo,
-      skipExisting,
-      concurrency,
-    });
-    const failed = result.filter((event) => event.status === 'failed').length;
-    setStatus(failed ? `下载完成，${failed} 个失败，可调整后重试` : '下载完成');
-    setDownloading(false);
+    try {
+      const result = await api().startDownload({
+        songs: picked,
+        outputDir,
+        includeVideo,
+        skipExisting,
+        concurrency,
+      });
+      const failed = result.filter((event) => event.status === 'failed').length;
+      setStatus(failed ? `下载完成，${failed} 个失败，可调整后重试` : '下载完成');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      setStatus(`下载任务失败：${message}`);
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
