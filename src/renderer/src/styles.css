@@ -1,3 +1,6 @@
+@import "./styles/controls.css";
+@import "./styles/transfer-effects.css";
+
 :root {
   color: #edf1f7;
   background: #080b11;
