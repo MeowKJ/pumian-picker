@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -84,7 +87,13 @@ jobs:
         with:
           name: pumian-picker-${{ matrix.name }}
           path: |
-            release/**
+            release/*.AppImage
+            release/*.deb
+            release/*.dmg
+            release/*.exe
+            release/*.rpm
+            release/*.yml
+            release/*.zip
             !release/**/*.blockmap
           if-no-files-found: error
 
