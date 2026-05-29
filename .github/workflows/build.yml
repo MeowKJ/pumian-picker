@@ -52,13 +52,21 @@ jobs:
         run: bash scripts/find-mac-signing.sh
 
       - name: Expose macOS signing secrets
-        if: runner.os == 'macOS' && secrets.CSC_LINK != ''
+        if: runner.os == 'macOS'
+        env:
+          CSC_LINK_SECRET: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD_SECRET: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD_SECRET: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          echo "CSC_LINK=${{ secrets.CSC_LINK }}" >> "$GITHUB_ENV"
-          echo "CSC_KEY_PASSWORD=${{ secrets.CSC_KEY_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "APPLE_ID=${{ secrets.APPLE_ID }}" >> "$GITHUB_ENV"
-          echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> "$GITHUB_ENV"
+          if [ -n "$CSC_LINK_SECRET" ]; then
+            echo "CSC_LINK=$CSC_LINK_SECRET" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$CSC_KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
+            echo "APPLE_ID=$APPLE_ID_SECRET" >> "$GITHUB_ENV"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD_SECRET" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET" >> "$GITHUB_ENV"
+          fi
 
       - name: Typecheck
         run: pnpm typecheck
