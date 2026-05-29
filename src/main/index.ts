@@ -89,7 +89,7 @@ function folderName(song: MajdataSong, index: number): string {
   const date = song.timestamp ? song.timestamp.slice(0, 10).replace(/-/g, '') : String(index + 1).padStart(4, '0');
   const title = sanitizePathName(song.title || song.id);
   const maker = sanitizePathName(song.designer || song.uploader || 'unknown');
-  return `${date}_${title}_${maker}_${song.id.slice(0, 8)}`;
+  return `${title}_${maker}_${date}_${song.id.slice(0, 8)}`;
 }
 
 async function withRetry<T>(task: () => Promise<T>, attempts = 3): Promise<T> {
@@ -200,7 +200,12 @@ async function fetchCharts(args: FetchChartsArgs): Promise<MajdataSong[]> {
   return all;
 }
 
-async function downloadOne(song: MajdataSong, args: DownloadArgs, index: number): Promise<DownloadEvent> {
+async function downloadOne(
+  song: MajdataSong,
+  args: DownloadArgs,
+  index: number,
+  emit: (event: DownloadEvent) => void,
+): Promise<DownloadEvent> {
   const dir = join(args.outputDir, folderName(song, index));
   const metaPath = join(dir, 'meta.json');
   if (args.skipExisting && (await exists(metaPath))) {
@@ -209,12 +214,14 @@ async function downloadOne(song: MajdataSong, args: DownloadArgs, index: number)
 
   await mkdir(dir, { recursive: true });
   const prefix = apiUrl(`/maichart/${song.id}`);
-  const [maidata, track, image, video] = await Promise.all([
-    fetchBinary(`${prefix}/chart`),
-    fetchBinary(`${prefix}/track`),
-    fetchBinary(`${prefix}/image?fullImage=true`),
-    args.includeVideo ? fetchBinary(`${prefix}/video`) : Promise.resolve(undefined),
-  ]);
+  emit({ id: song.id, title: song.title, status: 'downloading', message: '下载谱面' });
+  const maidata = await fetchBinary(`${prefix}/chart`);
+  emit({ id: song.id, title: song.title, status: 'downloading', message: '下载音频' });
+  const track = await fetchBinary(`${prefix}/track`);
+  emit({ id: song.id, title: song.title, status: 'downloading', message: '下载封面' });
+  const image = await fetchBinary(`${prefix}/image?fullImage=true`);
+  emit({ id: song.id, title: song.title, status: 'downloading', message: args.includeVideo ? '下载 PV' : '写入文件' });
+  const video = args.includeVideo ? await fetchBinary(`${prefix}/video`) : undefined;
 
   if (!maidata || !track || !image) {
     throw new Error('必要文件不完整');
@@ -243,7 +250,7 @@ async function runQueue(args: DownloadArgs, sender: Electron.WebContents): Promi
       const song = args.songs[index];
       sender.send('download:event', { id: song.id, title: song.title, status: 'downloading' } satisfies DownloadEvent);
       try {
-        const result = await downloadOne(song, args, index);
+        const result = await downloadOne(song, args, index, (event) => sender.send('download:event', event));
         results.push(result);
         sender.send('download:event', result);
       } catch (error) {

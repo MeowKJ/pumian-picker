@@ -516,16 +516,80 @@ select {
   font-size: 11px;
 }
 
-.log div {
-  padding: 6px;
+.task-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 48px;
+  padding: 8px;
   border: 1px solid #2d3340;
   border-radius: 6px;
   background: rgba(11, 16, 24, .82);
   animation: logIn .24s ease both;
 }
 
+.task-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255,255,255,.04), transparent 38%);
+  pointer-events: none;
+}
+
+.task-wave {
+  position: absolute;
+  inset: 0;
+  opacity: .4;
+  background:
+    radial-gradient(circle at 12% 50%, rgba(102, 214, 255, .26), transparent 24%),
+    linear-gradient(90deg, rgba(102, 214, 255, .1), transparent 62%);
+  transform: translateX(-40%);
+  pointer-events: none;
+}
+
+.task-progress {
+  position: absolute;
+  inset: auto auto 0 0;
+  height: 3px;
+  min-width: 8%;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, #66d6ff, #8d7bff, #ff5ec4);
+  box-shadow: 0 0 12px rgba(102, 214, 255, .4);
+  pointer-events: none;
+}
+
+.task-card.downloading {
+  border-color: rgba(102, 214, 255, .58);
+  box-shadow: inset 0 0 22px rgba(102, 214, 255, .08), 0 0 18px rgba(102, 214, 255, .12);
+}
+
+.task-card.downloading .task-wave {
+  opacity: .9;
+  background:
+    radial-gradient(circle at 12% 50%, rgba(102, 214, 255, .42), transparent 21%),
+    radial-gradient(circle at 54% 50%, rgba(255, 94, 196, .22), transparent 22%),
+    linear-gradient(90deg, rgba(102, 214, 255, .22), rgba(255, 94, 196, .12), rgba(102, 214, 255, .22));
+  background-size: 150px 100%, 210px 100%, 230% 100%;
+  animation: taskRipple 1s linear infinite;
+}
+
+.task-card.done {
+  border-color: rgba(36, 209, 157, .55);
+}
+
+.task-card.done .task-progress,
+.task-card.skipped .task-progress {
+  background: linear-gradient(90deg, #24d19d, #7fffd0);
+}
+
+.task-card.failed .task-progress {
+  background: linear-gradient(90deg, #ff6b78, #ff5ec4);
+}
+
 .log strong,
 .log span {
+  position: relative;
+  z-index: 1;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -710,42 +774,6 @@ select {
   text-shadow: 0 1px 4px rgba(0,0,0,.7);
 }
 
-.calendar-map {
-  display: grid;
-  grid-template-columns: repeat(21, 1fr);
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.calendar-map span {
-  height: 9px;
-  border-radius: 3px;
-  background:
-    linear-gradient(90deg, rgba(36, 209, 157, calc(var(--local) * .9)), transparent),
-    rgba(31, 43, 61, .9);
-  box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,.04),
-    0 0 calc(var(--level) * 3px) rgba(36, 209, 157, calc(var(--level) * .08));
-  opacity: calc(.42 + var(--level) * .14);
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-
-.calendar-map span.partial {
-  background:
-    linear-gradient(90deg, rgba(36, 209, 157, .55), rgba(102, 214, 255, .18)),
-    rgba(31, 43, 61, .9);
-}
-
-.calendar-map span.complete {
-  background: linear-gradient(135deg, #23c98f, #7fffd0);
-  box-shadow: 0 0 10px rgba(36, 209, 157, .34);
-}
-
-.calendar-map span:hover {
-  transform: scale(1.35);
-  box-shadow: 0 0 14px rgba(102, 214, 255, .5);
-}
-
 .batch-action {
   border-color: rgba(102, 214, 255, .45);
   background: linear-gradient(135deg, rgba(28, 61, 93, .85), rgba(27, 36, 53, .85));
@@ -809,6 +837,11 @@ select {
 @keyframes doneWash {
   from { transform: translateX(-90%); }
   to { transform: translateX(0); }
+}
+
+@keyframes taskRipple {
+  from { background-position: 0 0, 0 0, 0 0; transform: translateX(-28%); }
+  to { background-position: 150px 0, 210px 0, -230% 0; transform: translateX(20%); }
 }
 
 @keyframes donePop {
