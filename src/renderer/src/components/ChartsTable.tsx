@@ -1,15 +1,16 @@
+import { Ban, RotateCcw } from 'lucide-react';
 import type { DownloadEvent, Song } from '../types';
 import { formatDate, hasLocalChart, primaryLevel, tags } from '../utils';
 
 type ChartsTableProps = {
   filtered: Song[];
-  selected: Set<string>;
+  blockedIds: Set<string>;
   events: Record<string, DownloadEvent>;
   existingIds: Set<string>;
-  toggle: (id: string) => void;
+  toggleBlocked: (id: string) => void;
 };
 
-export function ChartsTable({ filtered, selected, events, existingIds, toggle }: ChartsTableProps) {
+export function ChartsTable({ filtered, blockedIds, events, existingIds, toggleBlocked }: ChartsTableProps) {
   return (
     <div className="table">
       <div className="row head">
@@ -17,10 +18,13 @@ export function ChartsTable({ filtered, selected, events, existingIds, toggle }:
       </div>
       {filtered.map((song) => {
         const event = events[song.id];
+        const blocked = blockedIds.has(song.id);
         return (
-          <button className={`row ${event?.status || ''} ${hasLocalChart(song, existingIds) ? 'local' : ''}`} key={song.id} onClick={() => toggle(song.id)}>
+          <div className={`row ${event?.status || ''} ${hasLocalChart(song, existingIds) ? 'local' : ''} ${blocked ? 'excluded' : ''}`} key={song.id}>
             <span className="row-wave" />
-            <input type="checkbox" checked={selected.has(song.id)} readOnly />
+            <button className="exclude-toggle" onClick={() => toggleBlocked(song.id)} title={blocked ? '恢复纳入下载' : '排除这首'}>
+              {blocked ? <RotateCcw size={14} /> : <Ban size={14} />}
+            </button>
             <span>
               <strong>{song.title}</strong>
               <small>{song.artist || '未知曲师'} · {song.designer || '未知谱师'} {tags(song) && `· ${tags(song)}`}</small>
@@ -28,8 +32,8 @@ export function ChartsTable({ filtered, selected, events, existingIds, toggle }:
             <b>{primaryLevel(song)}</b>
             <span>{song.uploader || '未知'}</span>
             <span>{formatDate(song.timestamp)}</span>
-            <span className={`badge ${event?.status || ''}`}>{event?.message || event?.status || '待命'}</span>
-          </button>
+            <span className={`badge ${event?.status || ''}`}>{blocked ? '已排除' : event?.message || event?.status || '待命'}</span>
+          </div>
         );
       })}
     </div>
