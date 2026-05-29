@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "description": "铺面拔取器 - MajdataNet recent chart batch downloader.",
   "main": "dist/main/index.js",
-  "author": "MeowKJ",
+  "author": {
+    "name": "MeowKJ",
+    "email": "meowkj@users.noreply.github.com"
+  },
   "license": "MIT",
   "private": false,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
-  "config": {
-    "electron_builder_binaries_mirror": "https://mirrors.huaweicloud.com/electron-builder-binaries/"
-  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "tsc -b && electron-vite build",
