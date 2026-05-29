@@ -154,6 +154,8 @@ function App() {
     };
   }, [events]);
 
+  const fxDots = useMemo(() => Array.from({ length: 18 }, (_, index) => index), []);
+
   async function refresh() {
     try {
       setStatus('正在从 MajdataNet 拉取近期谱面...');
@@ -284,7 +286,12 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${downloading ? 'is-downloading' : ''}`}>
+      <div className="fx-grid" />
+      <div className="fx-beams" />
+      <div className="fx-dots" aria-hidden="true">
+        {fxDots.map((dot) => <span key={dot} style={{ '--i': dot } as React.CSSProperties} />)}
+      </div>
       <header className="topbar">
         <div>
           <h1>铺面拔取器</h1>
@@ -295,7 +302,7 @@ function App() {
             <RefreshCw size={18} />
             刷新
           </button>
-          <button className="primary" onClick={startDownload} disabled={downloading} title="开始批量下载">
+          <button className="primary energy-button" onClick={startDownload} disabled={downloading} title="开始批量下载">
             <Download size={18} />
             下载选中
           </button>
@@ -334,7 +341,7 @@ function App() {
             <input type="range" min={1} max={8} value={concurrency} onChange={(event) => setConcurrency(Number(event.target.value))} />
             <span className="range-value">{concurrency}</span>
           </label>
-          <button className="wide" onClick={chooseDir} title="选择下载总文件夹">
+          <button className="wide tool-button" onClick={chooseDir} title="选择下载总文件夹">
             <FolderOpen size={18} />
             选择输出目录
           </button>
@@ -369,11 +376,11 @@ function App() {
                 <span>最旧 {oldestLoaded ? formatDate(oldestLoaded.timestamp) : '未加载'}</span>
               </div>
             </div>
-            <button onClick={downloadLatestBatch} disabled={downloading}>
+            <button className="batch-action" onClick={downloadLatestBatch} disabled={downloading}>
               <Download size={17} />
               下载最新 {batchSize} 个
             </button>
-            <button onClick={continueBatch} disabled={downloading}>
+            <button className="batch-action alt" onClick={continueBatch} disabled={downloading}>
               <StepForward size={17} />
               增量下载 {batchSize} 个
             </button>
@@ -391,7 +398,7 @@ function App() {
             {filtered.map((song) => {
               const event = events[song.id];
               return (
-                <button className="row" key={song.id} onClick={() => toggle(song.id)}>
+                <button className={`row ${event?.status || ''} ${hasLocalChart(song, existingIds) ? 'local' : ''}`} key={song.id} onClick={() => toggle(song.id)}>
                   <input type="checkbox" checked={selected.has(song.id)} readOnly />
                   <span>
                     <strong>{song.title}</strong>

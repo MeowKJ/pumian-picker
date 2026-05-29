@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net } from 'electron';
 import { mkdir, writeFile, access, readdir, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
@@ -49,10 +49,10 @@ type DownloadEvent = {
 
 function createWindow(): void {
   const win = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 980,
-    minHeight: 640,
+    width: 1120,
+    height: 690,
+    minWidth: 920,
+    minHeight: 560,
     title: '铺面拔取器',
     backgroundColor: '#111318',
     webPreferences: {
@@ -110,7 +110,7 @@ async function fetchBinary(url: string): Promise<Buffer | undefined> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
-      const res = await fetch(url, {
+      const res = await net.fetch(url, {
         signal: controller.signal,
         headers: {
           'User-Agent': 'pumian-picker/0.1.0',
@@ -131,7 +131,7 @@ async function fetchJson<T>(url: string): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const res = await fetch(url, {
+      const res = await net.fetch(url, {
         signal: controller.signal,
         headers: {
           'User-Agent': 'pumian-picker/0.1.0',
