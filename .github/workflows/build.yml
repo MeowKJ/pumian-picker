@@ -95,6 +95,7 @@ jobs:
             release/*.yml
             release/*.zip
             !release/**/*.blockmap
+            !release/builder-debug.yml
           if-no-files-found: error
 
   release:
@@ -113,7 +114,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: build-${{ github.run_number }}
         run: |
-          mapfile -d '' files < <(find release-artifacts -type f ! -name '*.blockmap' -print0)
+          mkdir -p release-upload
+          while IFS= read -r -d '' file; do
+            artifact="$(basename "$(dirname "$file")")"
+            safe_artifact="$(printf '%s' "$artifact" | tr ' /' '--')"
+            cp "$file" "release-upload/${safe_artifact}-$(basename "$file")"
+          done < <(
+            find release-artifacts -type f \
+              \( -name '*.AppImage' -o -name '*.deb' -o -name '*.dmg' -o -name '*.exe' -o -name '*.rpm' -o -name '*.zip' -o -name 'latest*.yml' \) \
+              ! -name '*.blockmap' \
+              ! -name 'builder-debug.yml' \
+              -print0
+          )
+          mapfile -d '' files < <(find release-upload -type f -print0)
           gh release create "$TAG_NAME" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
