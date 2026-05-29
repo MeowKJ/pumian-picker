@@ -1,4 +1,4 @@
-import { Download, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Download, RefreshCw, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -15,8 +15,9 @@ const initialFetchPages = 3;
 
 function App() {
   const [songs, setSongs] = useState<Song[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState('等待拉取近期谱面');
+  const [guide, setGuide] = useState<{ title: string; body: string } | undefined>();
   const [searchText, setSearchText] = useState('');
   const [difficulties, setDifficulties] = useState<Set<string>>(new Set());
   const [loadedPages, setLoadedPages] = useState(initialFetchPages);
@@ -75,12 +76,14 @@ function App() {
   }
 
   const filtered = useMemo(() => filterSongs(songs), [songs, searchText, difficulties]);
+  const eligible = filtered.filter((song) => !blockedIds.has(song.id));
   const coverageIndex = filtered.findIndex((song) => !hasLocalChart(song, existingIds));
   const coveredCount = coverageIndex === -1 ? filtered.length : coverageIndex;
   const coveragePercent = filtered.length ? Math.min(100, Math.round((coveredCount / filtered.length) * 100)) : 0;
   const oldestLoaded = filtered.at(-1);
   const newestLoaded = filtered.at(0);
-  const selectedCount = filtered.filter((song) => selected.has(song.id)).length;
+  const eligibleCount = eligible.length;
+  const blockedCount = filtered.length - eligibleCount;
   const localCount = filtered.filter((song) => hasLocalChart(song, existingIds)).length;
   const missingCount = Math.max(0, filtered.length - localCount);
 
@@ -106,10 +109,11 @@ function App() {
       const data = await api().fetchCharts({ pages: pagesToLoad, sort: '' });
       setLoadedPages(pagesToLoad);
       setSongs(data);
-      setSelected(new Set(data.map((song) => song.id)));
-      setStatus(`已拉取 ${data.length} 个近期谱面，默认全选`);
+      setBlockedIds(new Set());
+      setStatus(`已拉取 ${data.length} 个近期谱面，默认纳入下载`);
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
+      setGuide({ title: '拉取失败', body: message });
       setStatus(`拉取失败：${message}`);
     }
   }
@@ -132,6 +136,7 @@ function App() {
 
   async function prepareTransfer() {
     if (!outputDir) {
+      setGuide({ title: '需要输出目录', body: '先选择一个总文件夹，应用会在里面创建歌曲子文件夹。' });
       setTransferStatus('请先选择输出目录');
       return;
     }
@@ -143,12 +148,14 @@ function App() {
       setTransferStatus('iPad 扫码下载');
       await refreshFolderSummary();
     } catch (error) {
-      setTransferStatus(error instanceof Error ? error.message : '打包失败');
+      const message = error instanceof Error ? error.message : '打包失败';
+      setGuide({ title: '传输还没准备好', body: message });
+      setTransferStatus(message);
     }
   }
 
-  function toggle(id: string) {
-    setSelected((prev) => {
+  function toggleBlocked(id: string) {
+    setBlockedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -159,14 +166,14 @@ function App() {
   async function ensureWindow(offset: number, count: number): Promise<Song[]> {
     let nextPages = loadedPages;
     let source = songs;
-    let scoped = filterSongs(source);
+    let scoped = filterSongs(source).filter((song) => !blockedIds.has(song.id));
     while (scoped.length < offset + count && nextPages < maxScanPages) {
       nextPages = Math.min(maxScanPages, nextPages + Math.max(1, Math.ceil((offset + count - scoped.length) / 30)));
       setStatus(`自动扩展扫描到第 ${nextPages} 页...`);
       source = await api().fetchCharts({ pages: nextPages, sort: '' });
       setLoadedPages(nextPages);
       setSongs(source);
-      scoped = filterSongs(source);
+      scoped = filterSongs(source).filter((song) => !blockedIds.has(song.id));
       if (source.length === songs.length) break;
     }
     return scoped.slice(offset, offset + count);
@@ -177,7 +184,7 @@ function App() {
     let nextPages = loadedPages;
     let source = songs;
     let known = existingIds;
-    let scoped = filterSongs(source);
+    let scoped = filterSongs(source).filter((song) => !blockedIds.has(song.id));
     let missing = scoped.filter((song) => !hasLocalChart(song, known));
     while (missing.length < count && nextPages < maxScanPages) {
       nextPages = Math.min(maxScanPages, nextPages + Math.max(1, Math.ceil((count - missing.length) / 30)));
@@ -187,7 +194,7 @@ function App() {
       setLoadedPages(nextPages);
       setSongs(source);
       setExistingIds(known);
-      scoped = filterSongs(source);
+      scoped = filterSongs(source).filter((song) => !blockedIds.has(song.id));
       missing = scoped.filter((song) => !hasLocalChart(song, known));
       if (source.length === songs.length) break;
     }
@@ -196,6 +203,10 @@ function App() {
 
   async function downloadSongs(picked: Song[]) {
     if (!outputDir || picked.length === 0) {
+      setGuide({
+        title: !outputDir ? '还不能开始下载' : '没有可下载谱面',
+        body: !outputDir ? '请先选择输出目录。所有歌曲文件夹都会保存到这里。' : '当前筛选结果都被排除，或没有匹配的谱面。',
+      });
       setStatus('请先选择输出目录和要下载的谱面');
       return;
     }
@@ -211,6 +222,7 @@ function App() {
       setStatus(failed ? `下载完成，${failed} 个失败，可调整后重试` : '下载完成');
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
+      setGuide({ title: '下载任务失败', body: message });
       setStatus(`下载任务失败：${message}`);
     } finally {
       setDownloading(false);
@@ -218,18 +230,16 @@ function App() {
   }
 
   async function startDownload() {
-    await downloadSongs(filtered.filter((song) => selected.has(song.id)));
+    await downloadSongs(eligible);
   }
 
   async function downloadLatestBatch() {
     const picked = await ensureWindow(0, batchSize);
-    setSelected(new Set(picked.map((song) => song.id)));
     await downloadSongs(picked);
   }
 
   async function continueBatch() {
     const picked = await ensureIncremental(batchSize);
-    setSelected(new Set(picked.map((song) => song.id)));
     await downloadSongs(picked);
   }
 
@@ -252,10 +262,11 @@ function App() {
           </button>
           <button className="primary energy-button" onClick={startDownload} disabled={downloading} title="开始批量下载">
             <Download size={18} />
-            下载选中
+            下载当前筛选
           </button>
         </div>
       </header>
+      {guide && <GuideBanner title={guide.title} body={guide.body} onClose={() => setGuide(undefined)} />}
 
       <section className="workspace">
         <FiltersPanel
@@ -286,7 +297,7 @@ function App() {
             batchSize={batchSize}
             localCount={localCount}
             missingCount={missingCount}
-            selectedCount={selectedCount}
+            selectedCount={eligibleCount}
             newestLoaded={newestLoaded}
             oldestLoaded={oldestLoaded}
             downloadDone={downloadDone}
@@ -297,11 +308,10 @@ function App() {
             continueBatch={continueBatch}
           />
           <div className="toolbar">
-            <span>近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 选中 {selectedCount} 个 / 已扫描 {loadedPages} 页</span>
-            <button onClick={() => setSelected(new Set(filtered.map((song) => song.id)))}>全选筛选结果</button>
-            <button onClick={() => setSelected(new Set())}>清空</button>
+            <span>近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 可下载 {eligibleCount} 个 / 排除 {blockedCount} 个 / 已扫描 {loadedPages} 页</span>
+            <button onClick={() => setBlockedIds(new Set())}>清空排除</button>
           </div>
-          <ChartsTable filtered={filtered} selected={selected} events={events} existingIds={existingIds} toggle={toggle} />
+          <ChartsTable filtered={filtered} blockedIds={blockedIds} events={events} existingIds={existingIds} toggleBlocked={toggleBlocked} />
         </section>
 
         <QueuePanel
@@ -319,6 +329,20 @@ function App() {
         />
       </section>
     </main>
+  );
+}
+
+function GuideBanner({ title, body, onClose }: { title: string; body: string; onClose: () => void }) {
+  return (
+    <div className="guide-banner">
+      <div className="guide-glow" />
+      <AlertTriangle size={19} />
+      <div>
+        <strong>{title}</strong>
+        <span>{body}</span>
+      </div>
+      <button onClick={onClose} title="关闭提示"><X size={16} /></button>
+    </div>
   );
 }
 
