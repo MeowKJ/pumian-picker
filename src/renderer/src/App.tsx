@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Download, FolderOpen, RefreshCw, Search, Settings, ShieldCheck, SkipForward, StepForward } from 'lucide-react';
+import { Activity, Check, Download, FolderOpen, RefreshCw, Search, Settings, ShieldCheck, SkipForward, StepForward } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -83,6 +83,14 @@ function tags(song: Song): string {
   return [...(song.tags || []), ...(song.publicTags || [])].slice(0, 3).join(' / ');
 }
 
+function dayKey(value?: string): string {
+  if (!value) return '未知';
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
 function sortRecent(a: Song, b: Song): number {
   return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
 }
@@ -143,6 +151,10 @@ function App() {
   const coveragePercent = filtered.length ? Math.min(100, Math.round((coveredCount / filtered.length) * 100)) : 0;
   const latestWindowEnd = Math.min(batchSize, filtered.length);
   const oldestLoaded = filtered.at(-1);
+  const newestLoaded = filtered.at(0);
+  const selectedCount = filtered.filter((song) => selected.has(song.id)).length;
+  const localCount = filtered.filter((song) => hasLocalChart(song, existingIds)).length;
+  const missingCount = Math.max(0, filtered.length - localCount);
 
   const stats = useMemo(() => {
     const list = Object.values(events);
@@ -153,6 +165,31 @@ function App() {
       active: list.filter((event) => event.status === 'downloading').length,
     };
   }, [events]);
+
+  const downloadTotal = Object.keys(events).length;
+  const downloadDone = stats.done + stats.failed + stats.skipped;
+  const downloadPercent = downloadTotal ? Math.round((downloadDone / downloadTotal) * 100) : 0;
+
+  const positionCells = useMemo(() => {
+    const groups = new Map<string, { total: number; local: number; selected: number }>();
+    filtered.forEach((song) => {
+      const key = dayKey(song.timestamp);
+      const prev = groups.get(key) || { total: 0, local: 0, selected: 0 };
+      prev.total += 1;
+      if (hasLocalChart(song, existingIds)) prev.local += 1;
+      if (selected.has(song.id)) prev.selected += 1;
+      groups.set(key, prev);
+    });
+    const cells = Array.from(groups.entries()).slice(0, 42).reverse();
+    return cells.map(([date, item]) => ({
+      date,
+      total: item.total,
+      local: item.local,
+      selected: item.selected,
+      level: Math.min(4, Math.max(1, Math.ceil(item.total / 4))),
+      localRatio: item.total ? item.local / item.total : 0,
+    }));
+  }, [filtered, existingIds, selected]);
 
   const fxDots = useMemo(() => Array.from({ length: 18 }, (_, index) => index), []);
 
@@ -361,11 +398,17 @@ function App() {
         </aside>
 
         <section className="content">
-          <div className="batch-panel">
+          <section className="command-deck">
             <div className="position-card">
               <div className="position-head">
-                <span>下载位置</span>
+                <span><Activity size={15} />下载位置图</span>
                 <strong>{coveredCount} / {filtered.length}</strong>
+              </div>
+              <div className="position-stats">
+                <div><span>连续覆盖</span><strong>{coveragePercent}%</strong></div>
+                <div><span>本地已有</span><strong>{localCount}</strong></div>
+                <div><span>待补齐</span><strong>{missingCount}</strong></div>
+                <div><span>选中</span><strong>{selectedCount}</strong></div>
               </div>
               <div className="position-rail">
                 <span className="position-fill" style={{ width: `${coveragePercent}%` }} />
@@ -373,20 +416,40 @@ function App() {
               </div>
               <div className="position-meta">
                 <span>最新窗口 1-{latestWindowEnd}</span>
+                <span>最新 {newestLoaded ? formatDate(newestLoaded.timestamp) : '未加载'}</span>
                 <span>最旧 {oldestLoaded ? formatDate(oldestLoaded.timestamp) : '未加载'}</span>
               </div>
+              <div className="download-rail">
+                <span className="download-fill" style={{ width: `${downloadPercent}%` }} />
+                <strong>{downloadTotal ? `${downloadDone}/${downloadTotal}` : '等待任务'}</strong>
+              </div>
+              <div className="calendar-map" aria-label="近期下载覆盖点阵">
+                {positionCells.map((cell, index) => (
+                  <span
+                    key={`${cell.date}-${index}`}
+                    title={`${cell.date}：${cell.total} 个，本地 ${cell.local} 个，选中 ${cell.selected} 个`}
+                    className={cell.localRatio >= 1 ? 'complete' : cell.localRatio > 0 ? 'partial' : ''}
+                    style={{
+                      '--level': cell.level,
+                      '--local': cell.localRatio,
+                    } as React.CSSProperties}
+                  />
+                ))}
+              </div>
             </div>
-            <button className="batch-action" onClick={downloadLatestBatch} disabled={downloading}>
-              <Download size={17} />
-              下载最新 {batchSize} 个
-            </button>
-            <button className="batch-action alt" onClick={continueBatch} disabled={downloading}>
-              <StepForward size={17} />
-              增量下载 {batchSize} 个
-            </button>
-          </div>
+            <div className="batch-panel">
+              <button className="batch-action" onClick={downloadLatestBatch} disabled={downloading}>
+                <Download size={17} />
+                下载最新 {batchSize} 个
+              </button>
+              <button className="batch-action alt" onClick={continueBatch} disabled={downloading}>
+                <StepForward size={17} />
+                增量下载 {batchSize} 个
+              </button>
+            </div>
+          </section>
           <div className="toolbar">
-            <span>近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 选中 {filtered.filter((song) => selected.has(song.id)).length} 个</span>
+            <span>近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 选中 {selectedCount} 个</span>
             <button onClick={selectFiltered}>全选筛选结果</button>
             <button onClick={() => setSelected(new Set())}>清空</button>
           </div>
@@ -399,6 +462,7 @@ function App() {
               const event = events[song.id];
               return (
                 <button className={`row ${event?.status || ''} ${hasLocalChart(song, existingIds) ? 'local' : ''}`} key={song.id} onClick={() => toggle(song.id)}>
+                  <span className="row-wave" />
                   <input type="checkbox" checked={selected.has(song.id)} readOnly />
                   <span>
                     <strong>{song.title}</strong>

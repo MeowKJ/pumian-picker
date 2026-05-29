@@ -344,6 +344,7 @@ select {
 .row {
   width: 100%;
   min-height: 40px;
+  position: relative;
   display: grid;
   grid-template-columns: 28px minmax(220px, 1fr) 58px 98px 76px 86px;
   align-items: center;
@@ -355,6 +356,24 @@ select {
   text-align: left;
   background: rgba(19, 24, 35, .78);
   animation: rowEnter .38s ease both;
+  overflow: hidden;
+}
+
+.row > *:not(.row-wave) {
+  position: relative;
+  z-index: 1;
+}
+
+.row-wave {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .45;
+  background:
+    radial-gradient(circle at 14% 50%, rgba(102, 214, 255, .12), transparent 22%),
+    linear-gradient(90deg, rgba(255,255,255,.02), transparent 45%);
+  transform: translateX(-18%);
 }
 
 .row:hover {
@@ -366,15 +385,34 @@ select {
   background-image: linear-gradient(90deg, rgba(36, 209, 157, .08), transparent 34%);
 }
 
+.row.local .row-wave {
+  background:
+    linear-gradient(90deg, rgba(36, 209, 157, .2), transparent 42%),
+    repeating-linear-gradient(90deg, rgba(36, 209, 157, .12) 0 1px, transparent 1px 18px);
+}
+
 .row.downloading {
-  background-image: linear-gradient(90deg, rgba(102, 214, 255, .2), rgba(255, 80, 190, .12), rgba(102, 214, 255, .2));
-  background-size: 220% 100%;
-  animation: rowStream 1.15s linear infinite;
   box-shadow: inset 3px 0 0 #66d6ff;
+}
+
+.row.downloading .row-wave {
+  opacity: .95;
+  background:
+    radial-gradient(circle at 15% 50%, rgba(102, 214, 255, .36), transparent 19%),
+    radial-gradient(circle at 45% 50%, rgba(255, 94, 196, .2), transparent 20%),
+    linear-gradient(90deg, rgba(102, 214, 255, .28), rgba(255, 94, 196, .16), rgba(102, 214, 255, .28));
+  background-size: 160px 100%, 220px 100%, 240% 100%;
+  animation: rowRipple 1.1s linear infinite;
 }
 
 .row.done {
   animation: donePop .52s ease both;
+}
+
+.row.done .row-wave {
+  opacity: .65;
+  background: linear-gradient(90deg, rgba(36, 209, 157, .32), transparent 58%);
+  animation: doneWash .7s ease both;
 }
 
 .row.failed {
@@ -520,16 +558,23 @@ select {
   box-shadow: 0 0 16px rgba(36, 209, 157, .22);
 }
 
-.batch-panel {
+.command-deck {
   display: grid;
-  grid-template-columns: minmax(230px, 1fr) auto auto;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 176px;
+  align-items: stretch;
   gap: 8px;
   margin-bottom: 8px;
 }
 
+.batch-panel {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+}
+
 .batch-panel button {
-  height: 34px;
+  height: 100%;
+  min-height: 44px;
   border-radius: 6px;
   padding: 0 12px;
   display: inline-flex;
@@ -542,7 +587,7 @@ select {
   min-width: 0;
   border: 1px solid #28303c;
   border-radius: 8px;
-  padding: 8px 9px;
+  padding: 8px 10px;
   background:
     linear-gradient(180deg, rgba(28, 35, 50, .9) 0%, rgba(11, 17, 27, .88) 100%),
     radial-gradient(circle at 10% 20%, rgba(102, 214, 255, .16), transparent 40%);
@@ -558,13 +603,53 @@ select {
   font-size: 12px;
 }
 
+.position-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .position-head strong {
   color: #edf1f7;
 }
 
+.position-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.position-stats div {
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid rgba(89, 107, 139, .36);
+  border-radius: 6px;
+  background: rgba(8, 12, 19, .42);
+}
+
+.position-stats span,
+.position-stats strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.position-stats span {
+  color: #8793a5;
+  font-size: 10px;
+}
+
+.position-stats strong {
+  margin-top: 2px;
+  color: #edf1f7;
+  font-size: 15px;
+}
+
 .position-rail {
   position: relative;
-  height: 12px;
+  height: 18px;
   margin: 7px 0;
   overflow: hidden;
   border: 1px solid #2b3340;
@@ -585,12 +670,80 @@ select {
 
 .position-window {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
+  top: 3px;
+  bottom: 3px;
   border-radius: 999px;
   background: rgba(255, 255, 255, .32);
   box-shadow: 0 0 14px rgba(102, 214, 255, .42);
   animation: windowPulse 1.8s ease-in-out infinite;
+}
+
+.download-rail {
+  position: relative;
+  height: 16px;
+  margin-top: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(72, 88, 115, .72);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.04), transparent),
+    repeating-linear-gradient(135deg, #111827 0 10px, #151f30 10px 20px);
+}
+
+.download-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #66d6ff, #8d7bff, #ff5ec4, #66d6ff);
+  background-size: 240% 100%;
+  animation: railFlow 1.1s linear infinite;
+}
+
+.download-rail strong {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #dfe8f6;
+  font-size: 10px;
+  text-shadow: 0 1px 4px rgba(0,0,0,.7);
+}
+
+.calendar-map {
+  display: grid;
+  grid-template-columns: repeat(21, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.calendar-map span {
+  height: 9px;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, rgba(36, 209, 157, calc(var(--local) * .9)), transparent),
+    rgba(31, 43, 61, .9);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.04),
+    0 0 calc(var(--level) * 3px) rgba(36, 209, 157, calc(var(--level) * .08));
+  opacity: calc(.42 + var(--level) * .14);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.calendar-map span.partial {
+  background:
+    linear-gradient(90deg, rgba(36, 209, 157, .55), rgba(102, 214, 255, .18)),
+    rgba(31, 43, 61, .9);
+}
+
+.calendar-map span.complete {
+  background: linear-gradient(135deg, #23c98f, #7fffd0);
+  box-shadow: 0 0 10px rgba(36, 209, 157, .34);
+}
+
+.calendar-map span:hover {
+  transform: scale(1.35);
+  box-shadow: 0 0 14px rgba(102, 214, 255, .5);
 }
 
 .batch-action {
@@ -646,6 +799,16 @@ select {
 
 @keyframes rowStream {
   to { background-position: -220% 0; }
+}
+
+@keyframes rowRipple {
+  from { background-position: 0 0, 0 0, 0 0; transform: translateX(-8%); }
+  to { background-position: 160px 0, 220px 0, -240% 0; transform: translateX(8%); }
+}
+
+@keyframes doneWash {
+  from { transform: translateX(-90%); }
+  to { transform: translateX(0); }
 }
 
 @keyframes donePop {
