@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld('pumian', {
   chooseOutputDir: () => ipcRenderer.invoke('dialog:output-dir'),
   startDownload: (args: unknown) => ipcRenderer.invoke('downloads:start', args),
   getExistingIds: (args: unknown) => ipcRenderer.invoke('downloads:existing-ids', args),
+  scanFolder: (args: unknown) => ipcRenderer.invoke('folder:scan', args),
+  prepareTransfer: (args: unknown) => ipcRenderer.invoke('transfer:prepare', args),
+  stopTransfer: () => ipcRenderer.invoke('transfer:stop'),
   detectMacSigning: () => ipcRenderer.invoke('signing:detect'),
   onDownloadEvent: (callback: (event: unknown) => void) => {
     const listener = (_: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
