@@ -1,0 +1,21 @@
+.advanced-options {
+  margin-bottom: 8px;
+  border: 1px solid rgba(52, 58, 72, .9);
+  border-radius: 6px;
+  background: rgba(10, 14, 21, .52);
+}
+
+.advanced-options summary {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  color: #93a0b3;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.advanced-options label {
+  margin: 0;
+  padding: 0 8px 8px;
+}
