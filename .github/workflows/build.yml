@@ -152,11 +152,14 @@ jobs:
               -print0
           )
           mapfile -d '' files < <(find release-upload -type f -print0)
+          cat > release-notes.md <<EOF
+          版本：v${APP_VERSION}
+          CI 构建号：${CI_RUN_NUMBER}
+
+          本次发布包含 Windows x64 便携版、macOS arm64 DMG、Linux x64 AppImage。
+          EOF
           gh release create "$TAG_NAME" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$RELEASE_TITLE" \
-            --notes "版本：v${APP_VERSION}
-CI 构建号：${CI_RUN_NUMBER}
-
-本次发布包含 Windows x64 便携版、macOS arm64 DMG、Linux x64 AppImage。"
+            --notes-file release-notes.md
