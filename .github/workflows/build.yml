@@ -14,8 +14,27 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  version:
+    name: Prepare version
+    runs-on: ubuntu-latest
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+      ci_run_number: ${{ steps.version.outputs.ci_run_number }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      release_title: ${{ steps.version.outputs.release_title }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply CI version
+        id: version
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/apply-ci-version.mjs
+
   build:
     name: ${{ matrix.name }}
+    needs: version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -52,6 +71,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Apply CI version
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/apply-ci-version.mjs
 
       - name: Detect macOS signing identity
         if: runner.os == 'macOS'
@@ -97,7 +121,9 @@ jobs:
   release:
     name: Publish GitHub Release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
+    needs:
+      - version
+      - build
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
@@ -108,7 +134,10 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: build-${{ github.run_number }}
+          TAG_NAME: ${{ needs.version.outputs.release_tag }}
+          RELEASE_TITLE: ${{ needs.version.outputs.release_title }}
+          APP_VERSION: ${{ needs.version.outputs.app_version }}
+          CI_RUN_NUMBER: ${{ needs.version.outputs.ci_run_number }}
         run: |
           mkdir -p release-upload
           while IFS= read -r -d '' file; do
@@ -126,5 +155,8 @@ jobs:
           gh release create "$TAG_NAME" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "铺面拔取器 · 桌面版构建 ${{ github.run_number }}" \
-            --notes "本次发布包含 Windows x64 便携版、macOS arm64 DMG、Linux x64 AppImage。"
+            --title "$RELEASE_TITLE" \
+            --notes "版本：v${APP_VERSION}
+CI 构建号：${CI_RUN_NUMBER}
+
+本次发布包含 Windows x64 便携版、macOS arm64 DMG、Linux x64 AppImage。"

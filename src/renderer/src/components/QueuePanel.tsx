@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, RefreshCw } from 'lucide-react';
 import type { DownloadEvent, FolderSummary, QueueMode, TransferSession } from '../types';
 import { formatBytes, taskPercent } from '../utils';
 
@@ -83,18 +83,48 @@ function FolderList({ folderSummary, refreshFolderSummary }: {
       <div className="metric"><span>完整</span><strong>{folderSummary.complete}</strong></div>
       <div className="metric danger"><span>缺文件</span><strong>{folderSummary.incomplete}</strong></div>
       <div className="metric"><span>总大小</span><strong>{formatBytes(folderSummary.size)}</strong></div>
-      <button className="queue-action" onClick={refreshFolderSummary}>重新扫描</button>
+      <button className="queue-action folder-scan" onClick={refreshFolderSummary}>
+        <RefreshCw size={14} />
+        重新扫描
+      </button>
       <div className="log folder-log">
+        {folderSummary.recent.length === 0 && (
+          <div className="folder-empty">当前输出目录还没有歌曲文件夹</div>
+        )}
         {folderSummary.recent.map((item) => (
-          <div key={item.folder} className={`task-card ${item.complete ? 'done' : 'failed'}`}>
-            <span className="task-progress" style={{ width: item.complete ? '100%' : '45%' }} />
-            <strong>{item.title}</strong>
-            <span>{item.complete ? formatBytes(item.size) : `缺 ${item.missing.join(' / ')}`}</span>
+          <div key={item.folder} className={`folder-card ${item.complete ? 'complete' : 'incomplete'}`}>
+            <span className="folder-glow" />
+            <div className="folder-main">
+              <span className="folder-state">
+                {item.complete ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+              </span>
+              <div className="folder-copy">
+                <strong>{item.title}</strong>
+                <span title={item.folder}>{item.folder}</span>
+              </div>
+            </div>
+            <div className="folder-meta">
+              <span>{formatBytes(item.size)}</span>
+              <span>{formatFolderDate(item.updatedAt)}</span>
+              <span>{item.complete ? '完整' : `缺 ${item.missing.length} 项`}</span>
+            </div>
+            {!item.complete && (
+              <div className="folder-missing" title={item.missing.join(' / ')}>
+                {item.missing.join(' / ')}
+              </div>
+            )}
           </div>
         ))}
       </div>
     </>
   );
+}
+
+function formatFolderDate(value?: string): string {
+  if (!value) return '未知时间';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '未知时间';
+  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
 }
 
 function TransferBox(props: Pick<QueuePanelProps, 'transfer' | 'transferQr' | 'transferStatus' | 'outputDir' | 'prepareTransfer'>) {

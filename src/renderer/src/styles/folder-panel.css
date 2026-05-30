@@ -1,0 +1,143 @@
+.folder-scan {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.folder-log {
+  max-height: 370px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.folder-empty,
+.folder-card {
+  border: 1px solid rgba(80, 96, 124, .42);
+  border-radius: 7px;
+  background: rgba(10, 14, 22, .74);
+}
+
+.folder-empty {
+  padding: 12px;
+  color: #8d98ab;
+  text-align: center;
+}
+
+.folder-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  animation: logIn .24s ease both;
+}
+
+.folder-card.complete {
+  border-color: rgba(36, 209, 157, .45);
+}
+
+.folder-card.incomplete {
+  border-color: rgba(255, 107, 120, .52);
+}
+
+.folder-glow {
+  position: absolute;
+  inset: 0;
+  opacity: .55;
+  background:
+    radial-gradient(circle at 12% 50%, rgba(102, 214, 255, .18), transparent 26%),
+    linear-gradient(90deg, rgba(255,255,255,.05), transparent 42%);
+  pointer-events: none;
+}
+
+.folder-card.incomplete .folder-glow {
+  background:
+    radial-gradient(circle at 12% 50%, rgba(255, 107, 120, .22), transparent 26%),
+    linear-gradient(90deg, rgba(255, 94, 196, .08), transparent 42%);
+}
+
+.folder-main,
+.folder-meta,
+.folder-missing {
+  position: relative;
+}
+
+.folder-main {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+
+.folder-state {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: #77f4cb;
+  background: rgba(36, 209, 157, .12);
+}
+
+.folder-card.incomplete .folder-state {
+  color: #ff8f9c;
+  background: rgba(255, 107, 120, .12);
+}
+
+.folder-copy {
+  min-width: 0;
+}
+
+.folder-copy strong,
+.folder-copy span,
+.folder-missing {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-copy strong {
+  display: block;
+  color: #edf1f7;
+  font-size: 12px;
+}
+
+.folder-copy span {
+  display: block;
+  margin-top: 2px;
+  color: #8c98ac;
+  font-size: 10px;
+}
+
+.folder-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+
+.folder-meta span {
+  min-width: 0;
+  padding: 4px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .045);
+  color: #aab5c7;
+  font-size: 10px;
+  text-align: center;
+}
+
+.folder-card.complete .folder-meta span:last-child {
+  color: #91f5d2;
+}
+
+.folder-card.incomplete .folder-meta span:last-child {
+  color: #ff9ba6;
+}
+
+.folder-missing {
+  padding: 5px 6px;
+  border-radius: 5px;
+  color: #ffd5d9;
+  background: rgba(255, 107, 120, .11);
+  font-size: 10px;
+}
