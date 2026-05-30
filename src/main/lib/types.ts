@@ -30,6 +30,11 @@ export type ExistingIdsArgs = {
   outputDir: string;
 };
 
+export type DeleteChartArgs = {
+  outputDir: string;
+  songId: string;
+};
+
 export type DownloadEvent = {
   id: string;
   title: string;

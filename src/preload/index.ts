@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('pumian', {
   chooseOutputDir: () => ipcRenderer.invoke('dialog:output-dir'),
   startDownload: (args: unknown) => ipcRenderer.invoke('downloads:start', args),
   getExistingIds: (args: unknown) => ipcRenderer.invoke('downloads:existing-ids', args),
+  deleteLocalChart: (args: unknown) => ipcRenderer.invoke('downloads:delete-local', args),
   scanFolder: (args: unknown) => ipcRenderer.invoke('folder:scan', args),
   prepareTransfer: (args: unknown) => ipcRenderer.invoke('transfer:prepare', args),
   stopTransfer: () => ipcRenderer.invoke('transfer:stop'),

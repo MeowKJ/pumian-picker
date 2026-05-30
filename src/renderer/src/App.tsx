@@ -51,8 +51,11 @@ function App() {
       setFolderSummary({ total: 0, complete: 0, incomplete: 0, size: 0, recent: [] });
       return;
     }
-    api().getExistingIds({ outputDir }).then((ids) => setExistingIds(new Set(ids))).catch(() => setExistingIds(new Set()));
-    void refreshFolderSummary(outputDir);
+    void refreshLocalState(outputDir);
+    const timer = window.setInterval(() => {
+      void refreshLocalState(outputDir, true);
+    }, 2500);
+    return () => window.clearInterval(timer);
   }, [outputDir]);
 
   useEffect(() => {
@@ -122,9 +125,7 @@ function App() {
     const dir = await api().chooseOutputDir();
     if (dir) {
       setOutputDir(dir);
-      const ids = await api().getExistingIds({ outputDir: dir });
-      setExistingIds(new Set(ids));
-      await refreshFolderSummary(dir);
+      await refreshLocalState(dir);
     }
   }
 
@@ -132,6 +133,43 @@ function App() {
     if (!dir) return;
     const summary = await api().scanFolder({ outputDir: dir });
     setFolderSummary(summary);
+  }
+
+  async function refreshLocalState(dir = outputDir, quiet = false) {
+    if (!dir) return;
+    try {
+      const [ids, summary] = await Promise.all([
+        api().getExistingIds({ outputDir: dir }),
+        api().scanFolder({ outputDir: dir }),
+      ]);
+      setExistingIds(new Set(ids));
+      setFolderSummary(summary);
+    } catch (error) {
+      setExistingIds(new Set());
+      setFolderSummary({ total: 0, complete: 0, incomplete: 0, size: 0, recent: [] });
+      if (!quiet) {
+        const message = error instanceof Error ? error.message : '无法读取输出目录';
+        setGuide({ title: '文件夹状态刷新失败', body: message });
+      }
+    }
+  }
+
+  async function deleteLocalChart(song: Song) {
+    if (!outputDir) return;
+    try {
+      const folder = await api().deleteLocalChart({ outputDir, songId: song.id });
+      setEvents((prev) => {
+        const next = { ...prev };
+        delete next[song.id];
+        return next;
+      });
+      await refreshLocalState(outputDir);
+      setStatus(folder ? `已删除本地文件夹：${folder}` : `未找到 ${song.title} 的本地文件夹`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '删除失败';
+      setGuide({ title: '删除失败', body: message });
+      setStatus(`删除失败：${message}`);
+    }
   }
 
   async function prepareTransfer() {
@@ -216,9 +254,7 @@ function App() {
     try {
       const result = await api().startDownload({ songs: picked, outputDir, includeVideo, skipExisting, concurrency });
       const failed = result.filter((event) => event.status === 'failed').length;
-      const ids = await api().getExistingIds({ outputDir });
-      setExistingIds(new Set(ids));
-      await refreshFolderSummary(outputDir);
+      await refreshLocalState(outputDir);
       setStatus(failed ? `下载完成，${failed} 个失败，可调整后重试` : '下载完成');
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
@@ -311,7 +347,14 @@ function App() {
             <span>近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 可下载 {eligibleCount} 个 / 排除 {blockedCount} 个 / 已扫描 {loadedPages} 页</span>
             <button onClick={() => setBlockedIds(new Set())}>清空排除</button>
           </div>
-          <ChartsTable filtered={filtered} blockedIds={blockedIds} events={events} existingIds={existingIds} toggleBlocked={toggleBlocked} />
+          <ChartsTable
+            filtered={filtered}
+            blockedIds={blockedIds}
+            events={events}
+            existingIds={existingIds}
+            toggleBlocked={toggleBlocked}
+            deleteLocalChart={(song) => void deleteLocalChart(song)}
+          />
         </section>
 
         <QueuePanel

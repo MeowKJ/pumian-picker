@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FolderStatus, FolderSummary, MajdataSong } from './types';
 import { exists, fileSize } from './paths';
@@ -91,4 +91,26 @@ export async function readExistingIds(outputDir: string): Promise<string[]> {
     return [];
   }
   return [...ids];
+}
+
+export async function deleteChartFolder(outputDir: string, songId: string): Promise<string | undefined> {
+  const entries = await readdir(outputDir, { withFileTypes: true });
+  for (const entry of entries.filter((item) => item.isDirectory())) {
+    const folderPath = join(outputDir, entry.name);
+    const idSuffix = entry.name.match(/_([0-9a-f]{8})$/i)?.[1];
+    try {
+      const meta = JSON.parse(await readFile(join(folderPath, 'meta.json'), 'utf8')) as { id?: string };
+      if (meta.id === songId || meta.id?.slice(0, 8) === songId.slice(0, 8)) {
+        await rm(folderPath, { recursive: true, force: true });
+        return entry.name;
+      }
+    } catch {
+      // Fall back to the generated folder id suffix for older or partial folders.
+    }
+    if (idSuffix && idSuffix === songId.slice(0, 8)) {
+      await rm(folderPath, { recursive: true, force: true });
+      return entry.name;
+    }
+  }
+  return undefined;
 }

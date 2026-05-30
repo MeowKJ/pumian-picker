@@ -1,15 +1,16 @@
 import { dialog, ipcMain } from 'electron';
 import { fetchCharts } from './majdata';
 import { runQueue } from './downloads';
-import { readExistingIds, scanOutputDir } from './folder';
+import { deleteChartFolder, readExistingIds, scanOutputDir } from './folder';
 import { createTransferZip, stopTransfer } from './transfer';
 import { detectMacSigning } from './signing';
-import type { DownloadArgs, ExistingIdsArgs, FetchChartsArgs } from './types';
+import type { DeleteChartArgs, DownloadArgs, ExistingIdsArgs, FetchChartsArgs } from './types';
 
 export function registerIpc(): void {
   ipcMain.handle('charts:fetch', (_event, args: FetchChartsArgs) => fetchCharts(args));
   ipcMain.handle('downloads:start', (event, args: DownloadArgs) => runQueue(args, event.sender));
   ipcMain.handle('downloads:existing-ids', (_event, args: ExistingIdsArgs) => readExistingIds(args.outputDir));
+  ipcMain.handle('downloads:delete-local', (_event, args: DeleteChartArgs) => deleteChartFolder(args.outputDir, args.songId));
   ipcMain.handle('folder:scan', (_event, args: ExistingIdsArgs) => scanOutputDir(args.outputDir));
   ipcMain.handle('transfer:prepare', (_event, args: ExistingIdsArgs) => createTransferZip(args.outputDir));
   ipcMain.handle('transfer:stop', () => stopTransfer());

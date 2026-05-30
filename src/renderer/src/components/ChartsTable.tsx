@@ -1,4 +1,4 @@
-import { Ban, RotateCcw } from 'lucide-react';
+import { Ban, RotateCcw, Trash2 } from 'lucide-react';
 import type { DownloadEvent, Song } from '../types';
 import { formatDate, hasLocalChart, primaryLevel, tags } from '../utils';
 
@@ -8,9 +8,10 @@ type ChartsTableProps = {
   events: Record<string, DownloadEvent>;
   existingIds: Set<string>;
   toggleBlocked: (id: string) => void;
+  deleteLocalChart: (song: Song) => void;
 };
 
-export function ChartsTable({ filtered, blockedIds, events, existingIds, toggleBlocked }: ChartsTableProps) {
+export function ChartsTable({ filtered, blockedIds, events, existingIds, toggleBlocked, deleteLocalChart }: ChartsTableProps) {
   return (
     <div className="table">
       <div className="row head">
@@ -19,12 +20,20 @@ export function ChartsTable({ filtered, blockedIds, events, existingIds, toggleB
       {filtered.map((song) => {
         const event = events[song.id];
         const blocked = blockedIds.has(song.id);
+        const local = hasLocalChart(song, existingIds);
         return (
-          <div className={`row ${event?.status || ''} ${hasLocalChart(song, existingIds) ? 'local' : ''} ${blocked ? 'excluded' : ''}`} key={song.id}>
+          <div className={`row ${event?.status || ''} ${local ? 'local' : ''} ${blocked ? 'excluded' : ''}`} key={song.id}>
             <span className="row-wave" />
-            <button className="exclude-toggle" onClick={() => toggleBlocked(song.id)} title={blocked ? '恢复纳入下载' : '排除这首'}>
-              {blocked ? <RotateCcw size={14} /> : <Ban size={14} />}
-            </button>
+            <span className="row-actions">
+              <button className="exclude-toggle" onClick={() => toggleBlocked(song.id)} title={blocked ? '恢复纳入下载' : '排除这首'}>
+                {blocked ? <RotateCcw size={14} /> : <Ban size={14} />}
+              </button>
+              {local && (
+                <button className="delete-local" onClick={() => deleteLocalChart(song)} title="删除本地歌曲文件夹">
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </span>
             <span>
               <strong>{song.title}</strong>
               <small>{song.artist || '未知曲师'} · {song.designer || '未知谱师'} {tags(song) && `· ${tags(song)}`}</small>
@@ -32,7 +41,7 @@ export function ChartsTable({ filtered, blockedIds, events, existingIds, toggleB
             <b>{primaryLevel(song)}</b>
             <span>{song.uploader || '未知'}</span>
             <span>{formatDate(song.timestamp)}</span>
-            <span className={`badge ${event?.status || ''}`}>{blocked ? '已排除' : event?.message || event?.status || '待命'}</span>
+            <span className={`badge ${event?.status || ''}`}>{blocked ? '已排除' : event?.message || event?.status || (local ? '本地已有' : '待命')}</span>
           </div>
         );
       })}

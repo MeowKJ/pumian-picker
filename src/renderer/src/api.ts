@@ -11,6 +11,7 @@ type PumianApi = {
     concurrency: number;
   }) => Promise<DownloadEvent[]>;
   getExistingIds: (args: { outputDir: string }) => Promise<string[]>;
+  deleteLocalChart: (args: { outputDir: string; songId: string }) => Promise<string | undefined>;
   scanFolder: (args: { outputDir: string }) => Promise<FolderSummary>;
   prepareTransfer: (args: { outputDir: string }) => Promise<TransferSession>;
   stopTransfer: () => Promise<void>;
@@ -32,6 +33,7 @@ const fallbackApi: PumianApi = {
   chooseOutputDir: async () => undefined,
   startDownload: async () => [],
   getExistingIds: async () => [],
+  deleteLocalChart: async () => undefined,
   scanFolder: async () => ({ total: 0, complete: 0, incomplete: 0, size: 0, recent: [] }),
   prepareTransfer: async () => {
     throw new Error('当前环境不支持传输');

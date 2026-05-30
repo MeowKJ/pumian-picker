@@ -20,6 +20,12 @@
   padding: 0 8px 8px;
 }
 
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .exclude-toggle {
   width: 24px;
   height: 24px;
@@ -39,6 +45,27 @@
   color: #ffcc73;
   border-color: rgba(255, 204, 115, .55);
   box-shadow: 0 0 16px rgba(255, 204, 115, .18);
+}
+
+.delete-local {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  padding: 0;
+  color: #9aa5b6;
+  background: rgba(18, 10, 14, .68);
+}
+
+.delete-local::after {
+  display: none;
+}
+
+.delete-local:hover {
+  color: #ff7d89;
+  border-color: rgba(255, 107, 120, .6);
+  box-shadow: 0 0 18px rgba(255, 107, 120, .18);
 }
 
 .row.excluded {

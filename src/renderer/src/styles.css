@@ -349,7 +349,7 @@ select {
   min-height: 40px;
   position: relative;
   display: grid;
-  grid-template-columns: 28px minmax(220px, 1fr) 58px 98px 76px 86px;
+  grid-template-columns: 54px minmax(220px, 1fr) 58px 98px 76px 86px;
   align-items: center;
   gap: 10px;
   padding: 5px 9px;
@@ -432,11 +432,6 @@ select {
   background: rgba(11, 16, 24, .95);
   font-size: 12px;
   font-weight: 700;
-}
-
-.row input {
-  width: 14px;
-  height: 14px;
 }
 
 .row strong,
