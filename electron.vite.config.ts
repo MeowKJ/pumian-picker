@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   main: {
+    ssr: {
+      noExternal: ['archiver'],
+    },
     build: {
       outDir: 'dist/main',
     },
