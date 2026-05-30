@@ -1,8 +1,8 @@
 import { app } from 'electron';
+import * as archiverModule from 'archiver';
 import { rm, readdir } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { createRequire } from 'node:module';
 import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import type { Archiver, ArchiverOptions } from 'archiver';
@@ -10,8 +10,9 @@ import type { TransferSession } from './types';
 import { completeChartFolders } from './folder';
 import { fileSize } from './paths';
 
-const require = createRequire(import.meta.url);
-const createArchive = require('archiver') as (format: 'zip', options?: ArchiverOptions) => Archiver;
+const { ZipArchive } = archiverModule as unknown as {
+  ZipArchive: new (options?: ArchiverOptions) => Archiver;
+};
 
 let transferServer: Server | undefined;
 let transferFilePath = '';
@@ -49,7 +50,7 @@ export async function createTransferZip(outputDir: string): Promise<TransferSess
 
   await new Promise<void>((resolve, reject) => {
     const output = createWriteStream(zipPath);
-    const archive = createArchive('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
     output.on('close', resolve);
     archive.on('error', reject);
     archive.pipe(output);

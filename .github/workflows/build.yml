@@ -88,12 +88,8 @@ jobs:
           name: pumian-picker-${{ matrix.name }}
           path: |
             release/*.AppImage
-            release/*.deb
             release/*.dmg
             release/*.exe
-            release/*.rpm
-            release/*.yml
-            release/*.zip
             !release/**/*.blockmap
             !release/builder-debug.yml
           if-no-files-found: error
@@ -121,7 +117,7 @@ jobs:
             cp "$file" "release-upload/${safe_artifact}-$(basename "$file")"
           done < <(
             find release-artifacts -type f \
-              \( -name '*.AppImage' -o -name '*.deb' -o -name '*.dmg' -o -name '*.exe' -o -name '*.rpm' -o -name '*.zip' -o -name 'latest*.yml' \) \
+              \( -name '*.AppImage' -o -name '*.dmg' -o -name '*.exe' \) \
               ! -name '*.blockmap' \
               ! -name 'builder-debug.yml' \
               -print0
@@ -131,4 +127,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "铺面拔取器 自动构建 ${{ github.run_number }}" \
-            --notes "自动构建产物：Windows x64、macOS arm64、Linux x64。"
+            --notes "自动构建产物：Windows x64 便携版 exe、macOS arm64 dmg、Linux x64 AppImage。"
