@@ -126,5 +126,5 @@ jobs:
           gh release create "$TAG_NAME" "${files[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "铺面拔取器 自动构建 ${{ github.run_number }}" \
-            --notes "自动构建产物：Windows x64 便携版 exe、macOS arm64 dmg、Linux x64 AppImage。"
+            --title "铺面拔取器 · 桌面版构建 ${{ github.run_number }}" \
+            --notes "本次发布包含 Windows x64 便携版、macOS arm64 DMG、Linux x64 AppImage。"
