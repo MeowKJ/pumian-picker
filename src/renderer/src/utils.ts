@@ -33,7 +33,9 @@ export function tags(song: Song): string {
 }
 
 export function sortRecent(a: Song, b: Song): number {
-  return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
+  const byTime = new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
+  if (byTime !== 0) return byTime;
+  return `${a.title}-${a.id}`.localeCompare(`${b.title}-${b.id}`);
 }
 
 export function hasLocalChart(song: Song, existingIds: Set<string>): boolean {

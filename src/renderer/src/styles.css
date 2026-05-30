@@ -509,7 +509,7 @@ select {
 
 .queue-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: .82fr .82fr 1.36fr;
   gap: 4px;
   margin-bottom: 8px;
 }
@@ -520,6 +520,10 @@ select {
   padding: 0 6px;
   color: #9ba7b8;
   font-size: 11px;
+}
+
+.queue-tabs .transfer-tab {
+  color: #c2f6ec;
 }
 
 .queue-tabs button.active {
@@ -672,6 +676,16 @@ select {
   color: #75dfff;
   font-size: 10px;
   text-align: center;
+}
+
+.infinite-sentinel {
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  color: #7f8ca1;
+  font-size: 12px;
+  background: rgba(9, 13, 20, .72);
+  border-top: 1px solid rgba(80, 96, 124, .28);
 }
 
 .log strong,

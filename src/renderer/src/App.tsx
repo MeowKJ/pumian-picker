@@ -1,5 +1,5 @@
-import { AlertTriangle, Download, RefreshCw, X } from 'lucide-react';
-import QRCode from 'qrcode';
+import { AlertTriangle, Download, RefreshCw, TabletSmartphone, X } from 'lucide-react';
+import QRCodeLib from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api } from './api';
@@ -21,15 +21,17 @@ function App() {
   const [searchText, setSearchText] = useState('');
   const [difficulties, setDifficulties] = useState<Set<string>>(new Set());
   const [loadedPages, setLoadedPages] = useState(initialFetchPages);
-  const [maxScanPages, setMaxScanPages] = useState(50);
+  const [maxScanPages, setMaxScanPages] = useState(500);
   const [batchSize, setBatchSize] = useState(30);
   const [outputDir, setOutputDir] = useState('');
   const [existingIds, setExistingIds] = useState<Set<string>>(new Set());
   const [includeVideo, setIncludeVideo] = useState(false);
   const [skipExisting, setSkipExisting] = useState(true);
-  const [concurrency, setConcurrency] = useState(3);
+  const [concurrency, setConcurrency] = useState(1);
   const [downloading, setDownloading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [events, setEvents] = useState<Record<string, DownloadEvent>>({});
+  const [queueOrder, setQueueOrder] = useState<string[]>([]);
   const [signing, setSigning] = useState<string[]>([]);
   const [queueMode, setQueueMode] = useState<QueueMode>('tasks');
   const [folderSummary, setFolderSummary] = useState<FolderSummary>({ total: 0, complete: 0, incomplete: 0, size: 0, recent: [] });
@@ -63,7 +65,7 @@ function App() {
       setTransferQr('');
       return;
     }
-    QRCode.toDataURL(transfer.url, { margin: 1, width: 156, color: { dark: '#07120f', light: '#f6fffb' } })
+    QRCodeLib.toDataURL(transfer.url, { margin: 1, width: 156, color: { dark: '#07120f', light: '#f6fffb' } })
       .then(setTransferQr)
       .catch(() => setTransferQr(''));
   }, [transfer]);
@@ -89,6 +91,7 @@ function App() {
   const blockedCount = filtered.length - eligibleCount;
   const localCount = filtered.filter((song) => hasLocalChart(song, existingIds)).length;
   const missingCount = Math.max(0, filtered.length - localCount);
+  const canLoadMore = loadedPages < maxScanPages;
 
   const stats = useMemo(() => {
     const list = Object.values(events);
@@ -118,6 +121,25 @@ function App() {
       const message = error instanceof Error ? error.message : '未知错误';
       setGuide({ title: '拉取失败', body: message });
       setStatus(`拉取失败：${message}`);
+    }
+  }
+
+  async function loadMorePages() {
+    if (loadingMore || downloading || !canLoadMore) return;
+    const nextPages = Math.min(maxScanPages, loadedPages + 1);
+    try {
+      setLoadingMore(true);
+      setStatus(`继续拉取更早谱面，第 ${nextPages} 页...`);
+      const data = await api().fetchCharts({ pages: nextPages, sort: '' });
+      setLoadedPages(nextPages);
+      setSongs(data);
+      setStatus(`已按发布时间排序，扫描到第 ${nextPages} 页`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误';
+      setGuide({ title: '继续拉取失败', body: message });
+      setStatus(`继续拉取失败：${message}`);
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -192,6 +214,13 @@ function App() {
     }
   }
 
+  function openTransferPanel() {
+    setQueueMode('transfer');
+    if (!outputDir) {
+      setGuide({ title: 'iPad 传输入口', body: '先选择输出目录，然后在右侧传输页点击打包并扫码下载。' });
+    }
+  }
+
   function toggleBlocked(id: string) {
     setBlockedIds((prev) => {
       const next = new Set(prev);
@@ -249,6 +278,7 @@ function App() {
       return;
     }
     setDownloading(true);
+    setQueueOrder(picked.map((song) => song.id));
     setEvents(Object.fromEntries(picked.map((song) => [song.id, { id: song.id, title: song.title, status: 'queued' as const }])));
     setStatus(`开始下载 ${picked.length} 个谱面`);
     try {
@@ -295,6 +325,10 @@ function App() {
           <button onClick={refresh} disabled={downloading} title="刷新近期谱面">
             <RefreshCw size={18} />
             刷新
+          </button>
+          <button onClick={openTransferPanel} title="打开 iPad 局域网扫码传输">
+            <TabletSmartphone size={18} />
+            iPad 传输
           </button>
           <button className="primary energy-button" onClick={startDownload} disabled={downloading} title="开始批量下载">
             <Download size={18} />
@@ -344,7 +378,10 @@ function App() {
             continueBatch={continueBatch}
           />
           <div className="toolbar">
-            <span>近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 可下载 {eligibleCount} 个 / 排除 {blockedCount} 个 / 已扫描 {loadedPages} 页</span>
+            <span>
+              按发布时间排序 / 近期 {songs.length} 个 / 筛选 {filtered.length} 个 / 可下载 {eligibleCount} 个 / 排除 {blockedCount} 个 / 已扫描 {loadedPages} 页
+              {loadingMore && ' / 继续加载中'}
+            </span>
             <button onClick={() => setBlockedIds(new Set())}>清空排除</button>
           </div>
           <ChartsTable
@@ -354,6 +391,9 @@ function App() {
             existingIds={existingIds}
             toggleBlocked={toggleBlocked}
             deleteLocalChart={(song) => void deleteLocalChart(song)}
+            onReachEnd={() => void loadMorePages()}
+            canLoadMore={canLoadMore}
+            loadingMore={loadingMore}
           />
         </section>
 
@@ -362,6 +402,7 @@ function App() {
           setQueueMode={setQueueMode}
           stats={stats}
           events={events}
+          queueOrder={queueOrder}
           folderSummary={folderSummary}
           refreshFolderSummary={() => void refreshFolderSummary()}
           transfer={transfer}

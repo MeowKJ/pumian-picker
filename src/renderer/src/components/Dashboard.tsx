@@ -32,7 +32,7 @@ export function Dashboard(props: DashboardProps) {
         <div className="position-stats">
           <div><span>连续覆盖</span><strong>{props.coveragePercent}%</strong></div>
           <div><span>本地已有</span><strong>{props.localCount}</strong></div>
-          <div><span>待补齐</span><strong>{props.missingCount}</strong></div>
+          <div><span>未下载</span><strong>{props.missingCount}</strong></div>
           <div><span>可下载</span><strong>{props.selectedCount}</strong></div>
         </div>
         <div className="position-rail">

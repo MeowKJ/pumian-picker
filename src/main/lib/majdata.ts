@@ -65,7 +65,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 export async function fetchCharts(args: FetchChartsArgs): Promise<MajdataSong[]> {
-  const pages = Math.max(1, Math.min(args.pages || 1, 50));
+  const pages = Math.max(1, Math.min(args.pages || 1, 500));
   const sort = args.sort || '';
   const search = encodeURIComponent(args.search || '');
   const all: MajdataSong[] = [];

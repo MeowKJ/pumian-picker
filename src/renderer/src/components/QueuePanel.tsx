@@ -12,6 +12,7 @@ type QueuePanelProps = {
     active: number;
   };
   events: Record<string, DownloadEvent>;
+  queueOrder: string[];
   folderSummary: FolderSummary;
   refreshFolderSummary: () => void;
   transfer?: TransferSession;
@@ -28,9 +29,9 @@ export function QueuePanel(props: QueuePanelProps) {
       <div className="queue-tabs">
         <button className={props.queueMode === 'tasks' ? 'active' : ''} onClick={() => props.setQueueMode('tasks')}>任务</button>
         <button className={props.queueMode === 'folder' ? 'active' : ''} onClick={() => props.setQueueMode('folder')}>文件夹</button>
-        <button className={props.queueMode === 'transfer' ? 'active' : ''} onClick={() => props.setQueueMode('transfer')}>传输</button>
+        <button className={props.queueMode === 'transfer' ? 'active transfer-tab' : 'transfer-tab'} onClick={() => props.setQueueMode('transfer')}>iPad 传输</button>
       </div>
-      {props.queueMode === 'tasks' && <TaskList stats={props.stats} events={props.events} />}
+      {props.queueMode === 'tasks' && <TaskList stats={props.stats} events={props.events} queueOrder={props.queueOrder} />}
       {props.queueMode === 'folder' && (
         <FolderList folderSummary={props.folderSummary} refreshFolderSummary={props.refreshFolderSummary} />
       )}
@@ -47,7 +48,11 @@ export function QueuePanel(props: QueuePanelProps) {
   );
 }
 
-function TaskList({ stats, events }: Pick<QueuePanelProps, 'stats' | 'events'>) {
+function TaskList({ stats, events, queueOrder }: Pick<QueuePanelProps, 'stats' | 'events' | 'queueOrder'>) {
+  const orderedEvents = queueOrder.length
+    ? queueOrder.map((id) => events[id]).filter(Boolean)
+    : Object.values(events);
+
   return (
     <>
       <div className="metric"><span>进行中</span><strong>{stats.active}</strong></div>
@@ -55,11 +60,11 @@ function TaskList({ stats, events }: Pick<QueuePanelProps, 'stats' | 'events'>) 
       <div className="metric"><span>跳过</span><strong>{stats.skipped}</strong></div>
       <div className="metric danger"><span>失败</span><strong>{stats.failed}</strong></div>
       <div className="log">
-        {Object.values(events).slice(-18).reverse().map((event) => (
+        {orderedEvents.slice(0, 18).map((event, index) => (
           <div key={`${event.id}-${event.status}`} className={`task-card ${event.status}`}>
             <span className="task-wave" />
             <span className="task-progress" style={{ width: `${taskPercent(event)}%` }} />
-            <strong>{event.title}</strong>
+            <strong>{String(index + 1).padStart(2, '0')} · {event.title}</strong>
             <span>{event.message || event.status}</span>
           </div>
         ))}
@@ -96,7 +101,7 @@ function TransferBox(props: Pick<QueuePanelProps, 'transfer' | 'transferQr' | 't
   return (
     <div className="transfer-panel">
       <button className="queue-action primary-action" onClick={props.prepareTransfer} disabled={!props.outputDir}>
-        打包并开启扫码下载
+        打包 ZIP 并生成 iPad 二维码
       </button>
       <div className={`transfer-card ${props.transferQr ? 'is-ready' : 'is-idle'}`}>
         <div className="qr-orbit" />

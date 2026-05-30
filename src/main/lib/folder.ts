@@ -77,10 +77,13 @@ export async function readExistingIds(outputDir: string): Promise<string[]> {
     const entries = await readdir(outputDir, { withFileTypes: true });
     await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
       const folder = entry.name;
+      const folderPath = join(outputDir, folder);
+      const present = await Promise.all(REQUIRED_CHART_FILES.map((file) => exists(join(folderPath, file))));
+      if (!present.every(Boolean)) return;
       const idSuffix = folder.match(/_([0-9a-f]{8})$/i)?.[1];
       if (idSuffix) ids.add(idSuffix);
       try {
-        const meta = JSON.parse(await readFile(join(outputDir, folder, 'meta.json'), 'utf8')) as { id?: string };
+        const meta = JSON.parse(await readFile(join(folderPath, 'meta.json'), 'utf8')) as { id?: string };
         if (meta.id) ids.add(meta.id);
         if (meta.id) ids.add(meta.id.slice(0, 8));
       } catch {

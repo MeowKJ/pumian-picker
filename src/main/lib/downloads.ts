@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DownloadArgs, DownloadEvent, MajdataSong } from './types';
+import { REQUIRED_CHART_FILES } from './folder';
 import { chartPath, fetchBinary } from './majdata';
 import { exists, sanitizePathName } from './paths';
 
@@ -18,9 +19,11 @@ async function downloadOne(
   emit: (event: DownloadEvent) => void,
 ): Promise<DownloadEvent> {
   const dir = join(args.outputDir, folderName(song, index));
-  const metaPath = join(dir, 'meta.json');
-  if (args.skipExisting && (await exists(metaPath))) {
-    return { id: song.id, title: song.title, status: 'skipped', message: '已存在 meta.json' };
+  if (args.skipExisting) {
+    const complete = await Promise.all(REQUIRED_CHART_FILES.map((file) => exists(join(dir, file))));
+    if (complete.every(Boolean)) {
+      return { id: song.id, title: song.title, status: 'skipped', message: '本地完整' };
+    }
   }
 
   await mkdir(dir, { recursive: true });

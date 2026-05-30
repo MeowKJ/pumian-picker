@@ -46,8 +46,8 @@ export function FiltersPanel(props: FiltersPanelProps) {
       <details className="advanced-options">
         <summary>高级扫描</summary>
         <label>
-          最大扫描页数
-          <input type="number" min={1} max={50} value={props.maxScanPages} onChange={(event) => props.setMaxScanPages(Number(event.target.value))} />
+          无限滚动安全上限
+          <input type="number" min={1} max={500} value={props.maxScanPages} onChange={(event) => props.setMaxScanPages(Number(event.target.value))} />
         </label>
       </details>
       <label>
