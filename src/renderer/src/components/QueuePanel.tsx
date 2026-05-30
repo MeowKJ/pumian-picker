@@ -106,7 +106,7 @@ function TransferBox(props: Pick<QueuePanelProps, 'transfer' | 'transferQr' | 't
       <div className={`transfer-card ${props.transferQr ? 'is-ready' : 'is-idle'}`}>
         <div className="qr-orbit" />
         <strong>{props.transferStatus}</strong>
-        <span>{props.transfer ? `${props.transfer.completeCount} 首 / ${formatBytes(props.transfer.size)}` : '会只打包完整歌曲文件夹'}</span>
+        <span>{props.transfer ? `${props.transfer.completeCount} 首 / ${formatBytes(props.transfer.size)}` : 'ZIP 内会按 levels 难度分层'}</span>
         {props.transferQr && (
           <div className="qr-stage">
             <img src={props.transferQr} alt="iPad 扫码下载二维码" />
