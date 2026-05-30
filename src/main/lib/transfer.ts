@@ -1,14 +1,14 @@
 import { app } from 'electron';
 import * as archiverModule from 'archiver';
-import { readFile, rm, readdir } from 'node:fs/promises';
+import { rm, readdir } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 import type { Archiver, ArchiverOptions } from 'archiver';
-import type { MajdataSong, TransferSession } from './types';
+import type { TransferSession } from './types';
 import { completeChartFolders } from './folder';
-import { fileSize, sanitizePathName } from './paths';
+import { fileSize } from './paths';
 
 const { ZipArchive } = archiverModule as unknown as {
   ZipArchive: new (options?: ArchiverOptions) => Archiver;
@@ -47,16 +47,6 @@ function localAddress(): string {
   return candidates[0]?.address || '127.0.0.1';
 }
 
-async function levelFolderName(outputDir: string, folder: string): Promise<string> {
-  try {
-    const meta = JSON.parse(await readFile(join(outputDir, folder, 'meta.json'), 'utf8')) as Pick<MajdataSong, 'levels'>;
-    const level = (meta.levels || []).find(Boolean) || '未知难度';
-    return sanitizePathName(level);
-  } catch {
-    return '未知难度';
-  }
-}
-
 export async function stopTransfer(): Promise<void> {
   if (transferServer) {
     await new Promise<void>((resolve) => transferServer?.close(() => resolve()));
@@ -78,9 +68,6 @@ export async function createTransferZip(outputDir: string): Promise<TransferSess
   const filename = `铺面拔取器_${stamp}_${completeFolders.length}首.zip`;
   const zipPath = join(app.getPath('temp'), filename);
   await rm(zipPath, { force: true }).catch(() => undefined);
-  const levelByFolder = new Map(await Promise.all(
-    completeFolders.map(async (folder) => [folder, await levelFolderName(outputDir, folder)] as const),
-  ));
 
   await new Promise<void>((resolve, reject) => {
     const output = createWriteStream(zipPath);
@@ -90,8 +77,7 @@ export async function createTransferZip(outputDir: string): Promise<TransferSess
     archive.pipe(output);
     completeFolders.sort().forEach((folder) => {
       archive.directory(join(outputDir, folder), false, (entry) => {
-        const level = levelByFolder.get(folder) || '未知难度';
-        return { ...entry, name: `levels/${level}/${folder}/${entry.name}` };
+        return { ...entry, name: `levels/${folder}/${entry.name}` };
       });
     });
     archive.finalize().catch(reject);
